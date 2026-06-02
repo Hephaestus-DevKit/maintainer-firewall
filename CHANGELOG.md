@@ -2,6 +2,12 @@
 
 All notable changes to Maintainer Firewall will be documented in this file.
 
+## 0.1.8 - AI Output Guardrails
+
+- Normalizes AI finding text by compacting whitespace before reports, summaries, and JSON output use it.
+- Caps AI finding ids, titles, details, and suggestions so model output cannot produce oversized comments or reports.
+- Adds AI response normalization tests for long multiline findings and malformed findings.
+
 ## 0.1.7 - Runtime Resilience
 
 - Continues pull request triage with title and body checks when GitHub cannot list changed files, instead of failing the entire action.

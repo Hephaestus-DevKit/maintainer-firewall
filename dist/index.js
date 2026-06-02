@@ -45084,6 +45084,10 @@ const RESPONSE_SCHEMA = {
     },
     required: ["findings"]
 };
+const AI_ID_MAX_CHARACTERS = 80;
+const AI_TITLE_MAX_CHARACTERS = 120;
+const AI_DETAILS_MAX_CHARACTERS = 600;
+const AI_SUGGESTION_MAX_CHARACTERS = 240;
 async function analyzeWithAi(subject, config, apiKey, guidanceDocs = []) {
     if (!config.ai.enabled || !apiKey) {
         return [];
@@ -45224,9 +45228,9 @@ function normalizeAiFinding(value, index) {
     if (!["notice", "warning", "error"].includes(severity)) {
         return null;
     }
-    const title = String(record.title ?? "").trim();
-    const details = String(record.details ?? "").trim();
-    const suggestion = String(record.suggestion ?? "").trim();
+    const title = normalizeAiText(record.title, AI_TITLE_MAX_CHARACTERS);
+    const details = normalizeAiText(record.details, AI_DETAILS_MAX_CHARACTERS);
+    const suggestion = normalizeAiText(record.suggestion, AI_SUGGESTION_MAX_CHARACTERS);
     const label = String(record.label ?? "").trim();
     if (!title || !details) {
         return null;
@@ -45235,7 +45239,7 @@ function normalizeAiFinding(value, index) {
         return null;
     }
     return {
-        id: String(record.id ?? `ai.finding.${index + 1}`),
+        id: normalizeAiText(record.id ?? `ai.finding.${index + 1}`, AI_ID_MAX_CHARACTERS),
         severity: severity,
         title,
         details,
@@ -45243,6 +45247,13 @@ function normalizeAiFinding(value, index) {
         label,
         source: "ai"
     };
+}
+function normalizeAiText(value, maxCharacters) {
+    const compacted = String(value ?? "").replace(/\s+/g, " ").trim();
+    if (compacted.length <= maxCharacters) {
+        return compacted;
+    }
+    return `${compacted.slice(0, Math.max(0, maxCharacters - 14))}...[truncated]`;
 }
 function isKnownLabel(value) {
     return [
