@@ -48832,12 +48832,7 @@ async function buildSubject(octokit, context, duplicateSearchLimit) {
     if ((context.eventName === "pull_request" || context.eventName === "pull_request_target") &&
         isPullRequestPayload(payload)) {
         const pullRequest = payload.pull_request;
-        const changedFiles = await octokit.paginate(octokit.rest.pulls.listFiles, {
-            owner,
-            repo,
-            pull_number: pullRequest.number,
-            per_page: 100
-        });
+        const changedFiles = await listPullRequestFiles(octokit, owner, repo, pullRequest.number);
         return {
             kind: "pull_request",
             number: pullRequest.number,
@@ -48849,16 +48844,31 @@ async function buildSubject(octokit, context, duplicateSearchLimit) {
             draft: Boolean(pullRequest.draft),
             baseRef: pullRequest.base?.ref ?? "",
             headRef: pullRequest.head?.ref ?? "",
-            changedFiles: changedFiles.map((file) => ({
-                filename: file.filename,
-                status: file.status,
-                additions: file.additions,
-                deletions: file.deletions,
-                changes: file.changes
-            }))
+            changedFiles
         };
     }
     return null;
+}
+async function listPullRequestFiles(octokit, owner, repo, pullNumber) {
+    try {
+        const changedFiles = await octokit.paginate(octokit.rest.pulls.listFiles, {
+            owner,
+            repo,
+            pull_number: pullNumber,
+            per_page: 100
+        });
+        return changedFiles.map((file) => ({
+            filename: file.filename,
+            status: file.status,
+            additions: file.additions,
+            deletions: file.deletions,
+            changes: file.changes
+        }));
+    }
+    catch (error) {
+        core_warning(`Could not list files for pull request #${pullNumber}: ${github_client_getErrorMessage(error)}. Continuing with title and body checks only.`);
+        return [];
+    }
 }
 function getConfigRef(context) {
     const payload = context.payload;
@@ -48980,13 +48990,22 @@ async function ensureLabels(octokit, owner, repo, labels) {
             if (status !== 404) {
                 throw error;
             }
-            await octokit.rest.issues.createLabel({
-                owner,
-                repo,
-                name: label,
-                color: labelColor(label),
-                description: "Managed by Maintainer Firewall"
-            });
+            try {
+                await octokit.rest.issues.createLabel({
+                    owner,
+                    repo,
+                    name: label,
+                    color: labelColor(label),
+                    description: "Managed by Maintainer Firewall"
+                });
+            }
+            catch (createError) {
+                const createStatus = github_client_getErrorStatus(createError);
+                if (createStatus !== 422) {
+                    throw createError;
+                }
+                info(`Label "${label}" already exists after a concurrent create attempt.`);
+            }
         }
     }
 }
@@ -49032,6 +49051,9 @@ function github_client_getErrorStatus(error) {
         return Number(error.status);
     }
     return undefined;
+}
+function github_client_getErrorMessage(error) {
+    return error instanceof Error ? error.message : String(error);
 }
 
 ;// CONCATENATED MODULE: ./src/index.ts

@@ -2,6 +2,12 @@
 
 All notable changes to Maintainer Firewall will be documented in this file.
 
+## 0.1.7 - Runtime Resilience
+
+- Continues pull request triage with title and body checks when GitHub cannot list changed files, instead of failing the entire action.
+- Handles concurrent managed-label creation races by continuing when GitHub reports the label already exists.
+- Adds GitHub client tests for pull request file-list fallback, changed-file mapping, and concurrent label creation.
+
 ## 0.1.6 - Action Metadata Guidance
 
 - Clarifies Marketplace-facing action input descriptions for dry-run behavior, advisory failures, summaries, and JSON reports.

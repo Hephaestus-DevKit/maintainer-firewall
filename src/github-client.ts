@@ -53,12 +53,7 @@ export async function buildSubject(
     isPullRequestPayload(payload)
   ) {
     const pullRequest = payload.pull_request;
-    const changedFiles = await octokit.paginate(octokit.rest.pulls.listFiles, {
-      owner,
-      repo,
-      pull_number: pullRequest.number,
-      per_page: 100
-    });
+    const changedFiles = await listPullRequestFiles(octokit, owner, repo, pullRequest.number);
 
     return {
       kind: "pull_request",
@@ -71,17 +66,38 @@ export async function buildSubject(
       draft: Boolean(pullRequest.draft),
       baseRef: pullRequest.base?.ref ?? "",
       headRef: pullRequest.head?.ref ?? "",
-      changedFiles: changedFiles.map((file) => ({
-        filename: file.filename,
-        status: file.status,
-        additions: file.additions,
-        deletions: file.deletions,
-        changes: file.changes
-      } satisfies ChangedFile))
+      changedFiles
     } satisfies PullRequestSubject;
   }
 
   return null;
+}
+
+async function listPullRequestFiles(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  pullNumber: number
+): Promise<ChangedFile[]> {
+  try {
+    const changedFiles = await octokit.paginate(octokit.rest.pulls.listFiles, {
+      owner,
+      repo,
+      pull_number: pullNumber,
+      per_page: 100
+    });
+
+    return changedFiles.map((file) => ({
+      filename: file.filename,
+      status: file.status,
+      additions: file.additions,
+      deletions: file.deletions,
+      changes: file.changes
+    } satisfies ChangedFile));
+  } catch (error) {
+    core.warning(`Could not list files for pull request #${pullNumber}: ${getErrorMessage(error)}. Continuing with title and body checks only.`);
+    return [];
+  }
 }
 
 export function getConfigRef(context: GitHubContext): string | undefined {
@@ -262,13 +278,22 @@ async function ensureLabels(
         throw error;
       }
 
-      await octokit.rest.issues.createLabel({
-        owner,
-        repo,
-        name: label,
-        color: labelColor(label),
-        description: "Managed by Maintainer Firewall"
-      });
+      try {
+        await octokit.rest.issues.createLabel({
+          owner,
+          repo,
+          name: label,
+          color: labelColor(label),
+          description: "Managed by Maintainer Firewall"
+        });
+      } catch (createError) {
+        const createStatus = getErrorStatus(createError);
+        if (createStatus !== 422) {
+          throw createError;
+        }
+
+        core.info(`Label "${label}" already exists after a concurrent create attempt.`);
+      }
     }
   }
 }
@@ -349,4 +374,8 @@ function getErrorStatus(error: unknown): number | undefined {
   }
 
   return undefined;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
