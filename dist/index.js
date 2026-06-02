@@ -48227,7 +48227,10 @@ async function loadConfig(octokit, owner, repo, path, ref) {
         }
         const content = Buffer.from(response.data.content, "base64").toString("utf8");
         const parsed = (0,yaml_dist/* parse */.qg)(content);
-        return normalizeConfig(deepMerge(defaultConfig, parsed ?? {}));
+        for (const warning of configShapeWarnings(parsed ?? {})) {
+            core_warning(warning);
+        }
+        return mergeConfig(parsed ?? {});
     }
     catch (error) {
         const status = config_getErrorStatus(error);
@@ -48238,6 +48241,48 @@ async function loadConfig(octokit, owner, repo, path, ref) {
         core_warning(`Failed to load ${path}: ${config_getErrorMessage(error)}. Using defaults.`);
         return defaultConfig;
     }
+}
+function mergeConfig(override) {
+    return normalizeConfig(deepMerge(defaultConfig, override));
+}
+function configShapeWarnings(override, base = defaultConfig, path = "config") {
+    if (override === null || override === undefined) {
+        return [];
+    }
+    if (Array.isArray(base)) {
+        if (!Array.isArray(override)) {
+            return [`${path} should be an array; using the default value.`];
+        }
+        return override
+            .map((item, index) => typeof item === "string"
+            ? null
+            : `${path}[${index}] should be a string; using the default value for ${path}.`)
+            .filter((warning) => Boolean(warning));
+    }
+    if (config_isPlainObject(base)) {
+        if (!config_isPlainObject(override)) {
+            return [`${path} should be an object; using the default value.`];
+        }
+        const warnings = [];
+        for (const [key, value] of Object.entries(override)) {
+            if (!(key in base)) {
+                warnings.push(`${path}.${key} is not a supported config key and will be ignored.`);
+                continue;
+            }
+            warnings.push(...configShapeWarnings(value, base[key], `${path}.${key}`));
+        }
+        return warnings;
+    }
+    if (typeof base === "boolean" && typeof override !== "boolean") {
+        return [`${path} should be a boolean; using the default value.`];
+    }
+    if (typeof base === "number" && (typeof override !== "number" || !Number.isFinite(override))) {
+        return [`${path} should be a finite number; using the default value.`];
+    }
+    if (typeof base === "string" && typeof override !== "string") {
+        return [`${path} should be a string; using the default value.`];
+    }
+    return [];
 }
 function normalizeConfig(config) {
     return {
@@ -48293,20 +48338,35 @@ function normalizeConfig(config) {
     };
 }
 function deepMerge(base, override) {
-    if (!config_isPlainObject(base) || !config_isPlainObject(override)) {
-        return (override ?? base);
+    if (override === null || override === undefined) {
+        return base;
     }
-    const output = { ...base };
-    for (const [key, value] of Object.entries(override)) {
-        if (value === undefined) {
-            continue;
+    if (Array.isArray(base)) {
+        return (Array.isArray(override) && override.every((item) => typeof item === "string") ? override : base);
+    }
+    if (config_isPlainObject(base)) {
+        if (!config_isPlainObject(override)) {
+            return base;
         }
-        const baseValue = output[key];
-        output[key] = config_isPlainObject(baseValue) && config_isPlainObject(value)
-            ? deepMerge(baseValue, value)
-            : value;
+        const output = { ...base };
+        for (const [key, value] of Object.entries(override)) {
+            if (!(key in output)) {
+                continue;
+            }
+            output[key] = deepMerge(output[key], value);
+        }
+        return output;
     }
-    return output;
+    if (typeof base === "boolean") {
+        return (typeof override === "boolean" ? override : base);
+    }
+    if (typeof base === "number") {
+        return (typeof override === "number" && Number.isFinite(override) ? override : base);
+    }
+    if (typeof base === "string") {
+        return (typeof override === "string" ? override : base);
+    }
+    return override;
 }
 function config_isPlainObject(value) {
     return Boolean(value) && typeof value === "object" && !Array.isArray(value);

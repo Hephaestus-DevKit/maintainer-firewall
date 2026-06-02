@@ -2,6 +2,12 @@
 
 All notable changes to Maintainer Firewall will be documented in this file.
 
+## 0.1.2 - Config Robustness
+
+- Makes YAML config merging shape-aware so invalid object, array, boolean, number, or string overrides fall back to defaults instead of crashing the action.
+- Ignores unknown config keys during runtime normalization to keep loaded configuration predictable.
+- Emits workflow warnings for unsupported config keys and invalid value shapes.
+
 ## 0.1.1 - Experience Polish
 
 - Updates existing clean reports so stale bot comments do not keep telling contributors to fix already-resolved findings.

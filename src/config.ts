@@ -154,7 +154,11 @@ export async function loadConfig(
 
     const content = Buffer.from(response.data.content, "base64").toString("utf8");
     const parsed = parse(content) as Partial<FirewallConfig> | undefined;
-    return normalizeConfig(deepMerge(defaultConfig, parsed ?? {}));
+    for (const warning of configShapeWarnings(parsed ?? {})) {
+      core.warning(warning);
+    }
+
+    return mergeConfig(parsed ?? {});
   } catch (error) {
     const status = getErrorStatus(error);
     if (status === 404) {
@@ -165,6 +169,64 @@ export async function loadConfig(
     core.warning(`Failed to load ${path}: ${getErrorMessage(error)}. Using defaults.`);
     return defaultConfig;
   }
+}
+
+export function mergeConfig(override: unknown): FirewallConfig {
+  return normalizeConfig(deepMerge(defaultConfig, override));
+}
+
+export function configShapeWarnings(
+  override: unknown,
+  base: unknown = defaultConfig,
+  path = "config"
+): string[] {
+  if (override === null || override === undefined) {
+    return [];
+  }
+
+  if (Array.isArray(base)) {
+    if (!Array.isArray(override)) {
+      return [`${path} should be an array; using the default value.`];
+    }
+
+    return override
+      .map((item, index) => typeof item === "string"
+        ? null
+        : `${path}[${index}] should be a string; using the default value for ${path}.`)
+      .filter((warning): warning is string => Boolean(warning));
+  }
+
+  if (isPlainObject(base)) {
+    if (!isPlainObject(override)) {
+      return [`${path} should be an object; using the default value.`];
+    }
+
+    const warnings: string[] = [];
+    for (const [key, value] of Object.entries(override)) {
+      if (!(key in base)) {
+        warnings.push(`${path}.${key} is not a supported config key and will be ignored.`);
+        continue;
+      }
+
+      warnings.push(...configShapeWarnings(value, base[key], `${path}.${key}`));
+    }
+
+    return warnings;
+  }
+
+  if (typeof base === "boolean" && typeof override !== "boolean") {
+    return [`${path} should be a boolean; using the default value.`];
+  }
+
+  if (typeof base === "number" && (typeof override !== "number" || !Number.isFinite(override))) {
+    return [`${path} should be a finite number; using the default value.`];
+  }
+
+  if (typeof base === "string" && typeof override !== "string") {
+    return [`${path} should be a string; using the default value.`];
+  }
+
+  return [];
 }
 
 function normalizeConfig(config: FirewallConfig): FirewallConfig {
@@ -221,24 +283,45 @@ function normalizeConfig(config: FirewallConfig): FirewallConfig {
   };
 }
 
-function deepMerge<T>(base: T, override: Partial<T>): T {
-  if (!isPlainObject(base) || !isPlainObject(override)) {
-    return (override ?? base) as T;
+function deepMerge<T>(base: T, override: unknown): T {
+  if (override === null || override === undefined) {
+    return base;
   }
 
-  const output: Record<string, unknown> = { ...base };
-  for (const [key, value] of Object.entries(override)) {
-    if (value === undefined) {
-      continue;
+  if (Array.isArray(base)) {
+    return (Array.isArray(override) && override.every((item) => typeof item === "string") ? override : base) as T;
+  }
+
+  if (isPlainObject(base)) {
+    if (!isPlainObject(override)) {
+      return base;
     }
 
-    const baseValue = output[key];
-    output[key] = isPlainObject(baseValue) && isPlainObject(value)
-      ? deepMerge(baseValue, value)
-      : value;
+    const output: Record<string, unknown> = { ...base };
+    for (const [key, value] of Object.entries(override)) {
+      if (!(key in output)) {
+        continue;
+      }
+
+      output[key] = deepMerge(output[key], value);
+    }
+
+    return output as T;
   }
 
-  return output as T;
+  if (typeof base === "boolean") {
+    return (typeof override === "boolean" ? override : base) as T;
+  }
+
+  if (typeof base === "number") {
+    return (typeof override === "number" && Number.isFinite(override) ? override : base) as T;
+  }
+
+  if (typeof base === "string") {
+    return (typeof override === "string" ? override : base) as T;
+  }
+
+  return override as T;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
