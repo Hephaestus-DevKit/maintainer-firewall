@@ -95,7 +95,23 @@ Typical adjustments:
 - Tune `pullRequest.testPathPatterns` when tests live in custom directories.
 - Raise `pullRequest.largeChangeThreshold` for repositories with large generated changes.
 - Add or remove `pullRequest.sensitivePaths`.
+- Suppress a calibrated false positive with `rules.disabled`.
+- Downgrade a useful-but-nonblocking finding with `rules.severityOverrides.notice`.
 - Keep `labeling.enabled: false` during calibration.
+
+Example:
+
+```yaml
+rules:
+  disabled:
+    - issue.environment.missing
+  severityOverrides:
+    notice:
+      - pr.tests.missing
+```
+
+Suppression and severity overrides use exact finding IDs. If an ID is both disabled and overridden, disabled wins and the action emits a warning.
+The `content.secret.possible` finding is protected: it cannot be suppressed or downgraded, and AI analysis still skips when it fires.
 
 ## Duplicate Reports
 
@@ -139,4 +155,3 @@ npm run verify:dist
 ```
 
 If `verify:dist` reports differences, commit the updated `dist/index.js` and `dist/index.js.map` with the source changes.
-

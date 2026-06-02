@@ -7,6 +7,7 @@
 - Setup-state step summaries for first-run clarity.
 - Focused installation, rollout, rules, troubleshooting, and UX planning documentation.
 - Stable finding IDs surfaced in comments, annotations, and JSON reports.
+- Suppression and severity override controls keyed by exact finding ID.
 - CODEOWNERS-aware routing hints for pull requests.
 - Repository guidance loading from `CONTRIBUTING.md`, pull request templates, and issue templates.
 - Optional OpenAI-assisted semantic review with timeout, truncation, response normalization, and redaction.
@@ -18,7 +19,7 @@
 - Deeper project-specific rule extraction from `CONTRIBUTING.md` and templates into deterministic checks.
 - Better duplicate detection using embeddings when AI is enabled.
 - SARIF or code-scanning output for teams that prefer security dashboard surfaces over workflow annotations.
-- Suppression and severity override controls keyed by finding ID.
+- More detailed policy diagnostics for organization-scale configuration reviews.
 
 ## Later
 

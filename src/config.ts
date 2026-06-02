@@ -126,6 +126,14 @@ export const defaultConfig: FirewallConfig = {
     maxFindings: 8,
     includePassingChecks: true
   },
+  rules: {
+    disabled: [],
+    severityOverrides: {
+      notice: [],
+      warning: [],
+      error: []
+    }
+  },
   ignore: {
     authors: [
       "dependabot[bot]",
@@ -298,6 +306,14 @@ function normalizeConfig(config: FirewallConfig): FirewallConfig {
       postWhen: isKnownPostWhen(config.comment.postWhen) ? config.comment.postWhen : "findings",
       maxFindings: Math.max(1, config.comment.maxFindings),
       includePassingChecks: config.comment.includePassingChecks
+    },
+    rules: {
+      disabled: config.rules.disabled ?? [],
+      severityOverrides: {
+        notice: config.rules.severityOverrides.notice ?? [],
+        warning: config.rules.severityOverrides.warning ?? [],
+        error: config.rules.severityOverrides.error ?? []
+      }
     },
     ignore: {
       authors: config.ignore.authors ?? [],

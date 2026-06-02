@@ -13,6 +13,7 @@ import {
 } from "./comment.js";
 import { loadConfig } from "./config.js";
 import { validateConfig } from "./diagnostics.js";
+import { applyFindingPolicy } from "./finding-policy.js";
 import { loadRepositoryGuidance } from "./guidance.js";
 import { getSkipReason } from "./ignore.js";
 import { staleManagedLabels } from "./labels.js";
@@ -141,7 +142,7 @@ async function run(): Promise<void> {
   const aiFindings = hasPossibleSecret
     ? []
     : await analyzeWithAi(subject, config, openAiApiKey, guidanceDocs);
-  const findings = dedupeFindings([...ruleFindings, ...aiFindings]);
+  const findings = applyFindingPolicy(dedupeFindings([...ruleFindings, ...aiFindings]), config);
   const routingHints = subject.kind === "pull_request"
     ? await loadCodeOwnerHints(octokit, owner, repo, configRef, config, subject)
     : [];

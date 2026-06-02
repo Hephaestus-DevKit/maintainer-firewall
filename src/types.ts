@@ -134,6 +134,10 @@ export interface FirewallConfig {
     maxFindings: number;
     includePassingChecks: boolean;
   };
+  rules: {
+    disabled: string[];
+    severityOverrides: Record<Severity, string[]>;
+  };
   ignore: {
     authors: string[];
     labels: string[];

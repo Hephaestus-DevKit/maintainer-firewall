@@ -9,11 +9,19 @@ describe("mergeConfig", () => {
       },
       comment: {
         postWhen: "always"
+      },
+      rules: {
+        disabled: ["issue.environment.missing"],
+        severityOverrides: {
+          notice: ["pr.tests.missing"]
+        }
       }
     });
 
     expect(config.issue.minBodyCharacters).toBe(200);
     expect(config.comment.postWhen).toBe("always");
+    expect(config.rules.disabled).toEqual(["issue.environment.missing"]);
+    expect(config.rules.severityOverrides.notice).toEqual(["pr.tests.missing"]);
   });
 
   it("falls back to defaults for invalid shapes", () => {
@@ -26,6 +34,12 @@ describe("mergeConfig", () => {
       labels: {
         needsInfo: 42
       },
+      rules: {
+        disabled: [42],
+        severityOverrides: {
+          critical: ["issue.body.too_short"]
+        }
+      },
       ignoredUnknownKey: {
         enabled: false
       }
@@ -35,6 +49,7 @@ describe("mergeConfig", () => {
     expect(config.security.secretPatterns).toEqual(defaultConfig.security.secretPatterns);
     expect(config.security.reportPatterns).toEqual(defaultConfig.security.reportPatterns);
     expect(config.labels.needsInfo).toBe(defaultConfig.labels.needsInfo);
+    expect(config.rules).toEqual(defaultConfig.rules);
     expect("ignoredUnknownKey" in config).toBe(false);
   });
 
@@ -47,12 +62,21 @@ describe("mergeConfig", () => {
       security: {
         secretPatterns: ["\\btoken\\b", 42]
       },
+      rules: {
+        disabled: ["issue.environment.missing", 42],
+        severityOverrides: {
+          critical: ["issue.body.too_short"],
+          notice: ["pr.tests.missing"]
+        }
+      },
       ignoredUnknownKey: true
     });
 
     expect(warnings).toContain("config.issue should be an object; using the default value.");
     expect(warnings).toContain("config.ai.timeoutMs should be a finite number; using the default value.");
     expect(warnings).toContain("config.security.secretPatterns[1] should be a string; using the default value for config.security.secretPatterns.");
+    expect(warnings).toContain("config.rules.disabled[1] should be a string; using the default value for config.rules.disabled.");
+    expect(warnings).toContain("config.rules.severityOverrides.critical is not a supported config key and will be ignored.");
     expect(warnings).toContain("config.ignoredUnknownKey is not a supported config key and will be ignored.");
   });
 

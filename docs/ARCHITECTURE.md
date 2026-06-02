@@ -11,11 +11,12 @@ Maintainer Firewall is built as a GitHub JavaScript Action with a small determin
 5. Skip AI analysis if a possible secret is detected.
 6. Load repository guidance and CODEOWNERS hints when needed.
 7. Run optional AI analysis with timeout, input truncation, output normalization, and redaction.
-8. Create a review summary with outcome, score, next steps, labels, and routing hints.
-9. Redact report-facing finding and summary fields.
-10. Set action outputs and optionally emit GitHub Actions annotations for findings.
-11. Compose a maintainer-only setup summary for the Actions step summary.
-12. Write logs, step summary, optional JSON report, labels, and comment.
+8. Apply exact finding-ID policy for suppression and severity overrides.
+9. Create a review summary with outcome, score, next steps, labels, and routing hints.
+10. Redact report-facing finding and summary fields.
+11. Set action outputs and optionally emit GitHub Actions annotations for findings.
+12. Compose a maintainer-only setup summary for the Actions step summary.
+13. Write logs, step summary, optional JSON report, labels, and comment.
 
 ## Design Principles
 
@@ -28,6 +29,8 @@ Maintainer Firewall is built as a GitHub JavaScript Action with a small determin
 - Pull request file listing and existing report comment lookup degrade to warnings so body/title triage can continue.
 - Native workflow annotations are opt-in to keep the default experience low-noise.
 - The setup summary is kept out of issue and pull request comments so contributor-facing reports stay focused.
+- Finding policy uses exact IDs to avoid broad accidental suppression.
+- Possible credential findings remain protected and cannot be suppressed or downgraded.
 
 ## Main Modules
 
@@ -40,6 +43,7 @@ Maintainer Firewall is built as a GitHub JavaScript Action with a small determin
 - `src/ai.ts`: optional OpenAI Responses API integration.
 - `src/guidance.ts`: repository guidance loading.
 - `src/codeowners.ts`: best-effort CODEOWNERS routing hints.
+- `src/finding-policy.ts`: exact finding-ID suppression and severity overrides.
 - `src/report.ts`: structured JSON report generation.
 - `src/labels.ts`: desired and stale managed label calculation.
 - `src/setup-summary.ts`: maintainer-facing setup state for Actions step summaries.

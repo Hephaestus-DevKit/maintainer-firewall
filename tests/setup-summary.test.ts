@@ -7,6 +7,14 @@ describe("composeSetupSummary", () => {
     const summary = composeSetupSummary({
       config: {
         ...defaultConfig,
+        rules: {
+          disabled: ["issue.environment.missing"],
+          severityOverrides: {
+            notice: ["pr.tests.missing"],
+            warning: [],
+            error: []
+          }
+        },
         ai: {
           ...defaultConfig.ai,
           enabled: true
@@ -27,6 +35,7 @@ describe("composeSetupSummary", () => {
     expect(summary).toContain("writes suppressed by dry-run");
     expect(summary).toContain("| Annotations | Enabled |");
     expect(summary).toContain("| JSON report | reports/firewall.json |");
+    expect(summary).toContain("| Rule policy | 1 disabled; 1 severity override |");
     expect(summary).toContain("Configured, but no API key was provided");
     expect(summary).not.toContain("OPENAI_API_KEY");
   });

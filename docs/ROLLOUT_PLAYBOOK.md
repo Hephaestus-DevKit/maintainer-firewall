@@ -16,7 +16,7 @@ Maintainer Firewall is easiest to adopt when rollout mode is explicit. Start qui
 Use this first. It is read-only and writes the report to the Actions step summary.
 
 ```yaml
-- uses: wangjiehu/maintainer-firewall@v0.3.0
+- uses: wangjiehu/maintainer-firewall@v0.4.0
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
     dry-run: true
@@ -38,7 +38,7 @@ Use [examples/workflow.audit.yml](../examples/workflow.audit.yml).
 Use this when contributor-facing comments are useful but labels should remain under maintainer control.
 
 ```yaml
-- uses: wangjiehu/maintainer-firewall@v0.3.0
+- uses: wangjiehu/maintainer-firewall@v0.4.0
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -61,7 +61,7 @@ Use [examples/workflow.advisory.yml](../examples/workflow.advisory.yml) and [exa
 Use this when labels should help maintainers scan the queue.
 
 ```yaml
-- uses: wangjiehu/maintainer-firewall@v0.3.0
+- uses: wangjiehu/maintainer-firewall@v0.4.0
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -86,7 +86,7 @@ Use [examples/workflow.collaborative.yml](../examples/workflow.collaborative.yml
 Use this only after the rule set has been calibrated. It fails the workflow for warning or error findings.
 
 ```yaml
-- uses: wangjiehu/maintainer-firewall@v0.3.0
+- uses: wangjiehu/maintainer-firewall@v0.4.0
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
     emit-annotations: true
@@ -123,4 +123,3 @@ Before moving to strict:
 - If large refactors are expected, raise `pullRequest.largeChangeThreshold`.
 - If labels are not desired, keep `labeling.enabled: false` and rely on comments, step summary, annotations, or JSON.
 - If contributors complain about technical language, keep finding IDs in the details table but make next steps more specific through templates and project guidance.
-

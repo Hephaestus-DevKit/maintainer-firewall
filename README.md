@@ -76,7 +76,7 @@ jobs:
   firewall:
     runs-on: ubuntu-latest
     steps:
-      - uses: wangjiehu/maintainer-firewall@v0.3.0
+      - uses: wangjiehu/maintainer-firewall@v0.4.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           dry-run: true
@@ -95,7 +95,7 @@ The `labeled` and `unlabeled` events let ignore labels such as `skip-firewall` a
 Set `report-json-path` when another workflow step should consume a structured report:
 
 ```yaml
-      - uses: wangjiehu/maintainer-firewall@v0.3.0
+      - uses: wangjiehu/maintainer-firewall@v0.4.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           report-json-path: maintainer-firewall-report.json
@@ -118,7 +118,7 @@ Do not combine `pull_request_target`, write permissions, and a checkout of untru
 Maintainer Firewall works without an OpenAI API key. To enable AI-assisted semantic checks, set `ai.enabled: true` in `.maintainer-firewall.yml` and pass an API key:
 
 ```yaml
-      - uses: wangjiehu/maintainer-firewall@v0.3.0
+      - uses: wangjiehu/maintainer-firewall@v0.4.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -133,7 +133,7 @@ When AI analysis is enabled, Maintainer Firewall also loads configured repositor
 Start in dry-run mode if you want to inspect reports without writing comments or labels:
 
 ```yaml
-      - uses: wangjiehu/maintainer-firewall@v0.3.0
+      - uses: wangjiehu/maintainer-firewall@v0.4.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           dry-run: true
@@ -278,6 +278,13 @@ comment:
   maxFindings: 8
   includePassingChecks: true
 
+rules:
+  disabled: []
+  severityOverrides:
+    notice: []
+    warning: []
+    error: []
+
 ignore:
   authors:
     - dependabot[bot]
@@ -297,7 +304,7 @@ ai:
 ```
 
 See [`examples/config.quiet.yml`](examples/config.quiet.yml) for a gentle rollout preset and [`examples/config.strict.yml`](examples/config.strict.yml) for stricter projects.
-See [Rules](docs/RULES.md) for finding IDs, default severities, labels, and tuning knobs.
+See [Rules](docs/RULES.md) for finding IDs, default severities, labels, suppression, severity overrides, and tuning knobs.
 
 ## Local development
 
@@ -318,8 +325,8 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the internal flow and saf
 ```bash
 npm run check
 npm run verify:dist
-git tag v0.3.0
-git push origin main v0.3.0
+git tag v0.4.0
+git push origin main v0.4.0
 ```
 
 The release workflow publishes GitHub release notes for `v*` tags.

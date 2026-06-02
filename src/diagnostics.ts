@@ -1,5 +1,7 @@
 import type { FirewallConfig } from "./types.js";
 
+const PROTECTED_FINDING_IDS = new Set(["content.secret.possible"]);
+
 export function validateConfig(config: FirewallConfig): string[] {
   const warnings: string[] = [];
 
@@ -25,6 +27,8 @@ export function validateConfig(config: FirewallConfig): string[] {
     warnings.push("comment.maxFindings should be at least 1.");
   }
 
+  warnings.push(...rulePolicyWarnings(config));
+
   return warnings;
 }
 
@@ -40,4 +44,40 @@ function invalidRegexWarnings(path: string, patterns: string[]): string[] {
       }
     })
     .filter((warning): warning is string => Boolean(warning));
+}
+
+function rulePolicyWarnings(config: FirewallConfig): string[] {
+  const warnings: string[] = [];
+  const disabled = new Set(config.rules.disabled);
+  const overrides = new Map<string, string[]>();
+
+  for (const [severity, ids] of Object.entries(config.rules.severityOverrides)) {
+    for (const id of ids) {
+      const configuredSeverities = overrides.get(id) ?? [];
+      configuredSeverities.push(severity);
+      overrides.set(id, configuredSeverities);
+    }
+  }
+
+  for (const [id, severities] of overrides) {
+    if (disabled.has(id) && !PROTECTED_FINDING_IDS.has(id)) {
+      warnings.push(`rules.disabled includes "${id}" and rules.severityOverrides also configures it; disabled wins.`);
+    }
+
+    if (PROTECTED_FINDING_IDS.has(id) && severities.some((severity) => severity !== "error")) {
+      warnings.push(`rules.severityOverrides cannot downgrade protected finding "${id}"; default severity remains error.`);
+    }
+
+    if (severities.length > 1) {
+      warnings.push(`rules.severityOverrides configures "${id}" more than once (${severities.join(", ")}); strongest severity wins.`);
+    }
+  }
+
+  for (const id of disabled) {
+    if (PROTECTED_FINDING_IDS.has(id)) {
+      warnings.push(`rules.disabled cannot suppress protected finding "${id}"; it will still be reported.`);
+    }
+  }
+
+  return warnings;
 }

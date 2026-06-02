@@ -48341,6 +48341,14 @@ const defaultConfig = {
         maxFindings: 8,
         includePassingChecks: true
     },
+    rules: {
+        disabled: [],
+        severityOverrides: {
+            notice: [],
+            warning: [],
+            error: []
+        }
+    },
     ignore: {
         authors: [
             "dependabot[bot]",
@@ -48485,6 +48493,14 @@ function normalizeConfig(config) {
             maxFindings: Math.max(1, config.comment.maxFindings),
             includePassingChecks: config.comment.includePassingChecks
         },
+        rules: {
+            disabled: config.rules.disabled ?? [],
+            severityOverrides: {
+                notice: config.rules.severityOverrides.notice ?? [],
+                warning: config.rules.severityOverrides.warning ?? [],
+                error: config.rules.severityOverrides.error ?? []
+            }
+        },
         ignore: {
             authors: config.ignore.authors ?? [],
             labels: config.ignore.labels ?? [],
@@ -48546,6 +48562,7 @@ function isKnownPostWhen(value) {
 }
 
 ;// CONCATENATED MODULE: ./src/diagnostics.ts
+const PROTECTED_FINDING_IDS = new Set(["content.secret.possible"]);
 function validateConfig(config) {
     const warnings = [];
     if (config.version !== 1) {
@@ -48565,6 +48582,7 @@ function validateConfig(config) {
     if (config.comment.maxFindings < 1) {
         warnings.push("comment.maxFindings should be at least 1.");
     }
+    warnings.push(...rulePolicyWarnings(config));
     return warnings;
 }
 function invalidRegexWarnings(path, patterns) {
@@ -48580,6 +48598,59 @@ function invalidRegexWarnings(path, patterns) {
         }
     })
         .filter((warning) => Boolean(warning));
+}
+function rulePolicyWarnings(config) {
+    const warnings = [];
+    const disabled = new Set(config.rules.disabled);
+    const overrides = new Map();
+    for (const [severity, ids] of Object.entries(config.rules.severityOverrides)) {
+        for (const id of ids) {
+            const configuredSeverities = overrides.get(id) ?? [];
+            configuredSeverities.push(severity);
+            overrides.set(id, configuredSeverities);
+        }
+    }
+    for (const [id, severities] of overrides) {
+        if (disabled.has(id) && !PROTECTED_FINDING_IDS.has(id)) {
+            warnings.push(`rules.disabled includes "${id}" and rules.severityOverrides also configures it; disabled wins.`);
+        }
+        if (PROTECTED_FINDING_IDS.has(id) && severities.some((severity) => severity !== "error")) {
+            warnings.push(`rules.severityOverrides cannot downgrade protected finding "${id}"; default severity remains error.`);
+        }
+        if (severities.length > 1) {
+            warnings.push(`rules.severityOverrides configures "${id}" more than once (${severities.join(", ")}); strongest severity wins.`);
+        }
+    }
+    for (const id of disabled) {
+        if (PROTECTED_FINDING_IDS.has(id)) {
+            warnings.push(`rules.disabled cannot suppress protected finding "${id}"; it will still be reported.`);
+        }
+    }
+    return warnings;
+}
+
+;// CONCATENATED MODULE: ./src/finding-policy.ts
+const SEVERITY_OVERRIDE_PRECEDENCE = ["error", "warning", "notice"];
+const finding_policy_PROTECTED_FINDING_IDS = new Set(["content.secret.possible"]);
+function applyFindingPolicy(findings, config) {
+    const disabled = new Set(config.rules.disabled);
+    return findings
+        .filter((finding) => !disabled.has(finding.id) || finding_policy_PROTECTED_FINDING_IDS.has(finding.id))
+        .map((finding) => ({
+        ...finding,
+        severity: severityForFinding(finding, config) ?? finding.severity
+    }));
+}
+function severityForFinding(finding, config) {
+    if (finding_policy_PROTECTED_FINDING_IDS.has(finding.id)) {
+        return null;
+    }
+    for (const severity of SEVERITY_OVERRIDE_PRECEDENCE) {
+        if (config.rules.severityOverrides[severity].includes(finding.id)) {
+            return severity;
+        }
+    }
+    return null;
 }
 
 ;// CONCATENATED MODULE: ./src/ignore.ts
@@ -48881,6 +48952,7 @@ function matchesAnyRegex(value, patterns) {
 }
 
 ;// CONCATENATED MODULE: ./src/setup-summary.ts
+const setup_summary_PROTECTED_FINDING_IDS = new Set(["content.secret.possible"]);
 function composeSetupSummary(options) {
     const rows = [
         ["Subject", options.subjectKind ? subjectLabel(options.subjectKind) : "No handled issue or pull request"],
@@ -48890,6 +48962,7 @@ function composeSetupSummary(options) {
         ["Labels", labelState(options.config, options.dryRun)],
         ["Annotations", options.emitAnnotations ? "Enabled" : "Disabled"],
         ["JSON report", options.reportJsonPath || "Disabled"],
+        ["Rule policy", rulePolicyState(options.config)],
         ["AI analysis", aiState(options.config, options.openAiApiKeyProvided)],
         ["Failure policy", options.failOnFindings ? "Fail on warning or error findings" : "Advisory; workflow does not fail on findings"]
     ];
@@ -48927,6 +49000,14 @@ function aiState(config, openAiApiKeyProvided) {
     return openAiApiKeyProvided
         ? `Enabled; model=${config.ai.model}; timeoutMs=${config.ai.timeoutMs}`
         : "Configured, but no API key was provided";
+}
+function rulePolicyState(config) {
+    const disabledCount = config.rules.disabled.filter((id) => !setup_summary_PROTECTED_FINDING_IDS.has(id)).length;
+    const overrideCount = Object.entries(config.rules.severityOverrides).reduce((sum, [severity, ids]) => sum + ids.filter((id) => !setup_summary_PROTECTED_FINDING_IDS.has(id) || severity === "error").length, 0);
+    if (disabledCount === 0 && overrideCount === 0) {
+        return "Default";
+    }
+    return `${disabledCount} disabled; ${overrideCount} severity override${overrideCount === 1 ? "" : "s"}`;
 }
 function setup_summary_escapeTable(value) {
     return value.replace(/\|/g, "\\|").replace(/\n/g, " ");
@@ -49206,6 +49287,7 @@ function github_client_getErrorMessage(error) {
 
 
 
+
 async function run() {
     const token = getInput("github-token", { required: true });
     const openAiApiKey = getInput("openai-api-key") || process.env.OPENAI_API_KEY;
@@ -49299,7 +49381,7 @@ async function run() {
     const aiFindings = hasPossibleSecret
         ? []
         : await analyzeWithAi(subject, config, openAiApiKey, guidanceDocs);
-    const findings = dedupeFindings([...ruleFindings, ...aiFindings]);
+    const findings = applyFindingPolicy(dedupeFindings([...ruleFindings, ...aiFindings]), config);
     const routingHints = subject.kind === "pull_request"
         ? await loadCodeOwnerHints(octokit, owner, repo, configRef, config, subject)
         : [];

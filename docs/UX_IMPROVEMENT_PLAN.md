@@ -1,8 +1,8 @@
 # User Experience Improvement Plan
 
-Status: approved direction; Phase 0 and part of Phase 1 are implemented in v0.3.0.
+Status: approved direction; Phase 0, part of Phase 1, and the highest-value Phase 2 tuning controls are implemented in v0.4.0.
 
-Baseline: Maintainer Firewall v0.3.0 already supports low-noise triage reports, labels, setup-state step summaries, structured JSON reports, optional workflow annotations, CODEOWNERS routing hints, configuration schema guidance, stable finding IDs, focused onboarding docs, and optional AI-assisted semantic review.
+Baseline: Maintainer Firewall v0.4.0 already supports low-noise triage reports, labels, setup-state step summaries, structured JSON reports, optional workflow annotations, CODEOWNERS routing hints, configuration schema guidance, stable finding IDs, focused onboarding docs, exact finding-ID suppression, exact finding-ID severity overrides, and optional AI-assisted semantic review.
 
 ## Objective
 
@@ -45,8 +45,8 @@ The north-star user outcome is: a maintainer can install safely in under 10 minu
 | Installation | README mixes quick start, safety notes, inputs, config, and release info in one long page. | First-time users can miss important permission or rollout details. |
 | Mode selection | Users must combine `dry-run`, `labeling.enabled`, `comment.postWhen`, annotations, summaries, and JSON manually. | More setup errors and inconsistent rollout patterns. |
 | First run | There is no dedicated "what to look at after the first run" checklist. | Users may not know whether findings are expected, noisy, or misconfigured. |
-| Config tuning | Schema is strong, but there is no guided config doctor or effective-config output. | Debugging config mistakes depends on reading logs. |
-| Report explainability | Findings are readable, but users do not see stable finding IDs or rule documentation in the report. | Maintainers cannot easily tune or discuss specific rules. |
+| Config tuning | Schema is strong and exact finding-ID policy now exists, but there is no downloadable effective-config output. | Debugging complex org configs still depends on reading logs. |
+| Report explainability | Stable IDs and rule docs now exist, but project-specific guidance links are still not attached to individual findings. | Contributors may still need template examples for some project-specific cases. |
 | Contributor UX | Next steps are good, but not yet linked to project-specific examples or accepted evidence patterns. | Contributors may still ask what counts as enough information. |
 | Long-term operations | JSON output exists, but no documented metrics workflow or dashboard path exists. | Teams cannot easily measure noise reduction or false positives. |
 | Organization scale | Roadmap mentions GitHub App packaging, but no adoption model is documented. | Larger teams lack a clear path from one repo to many repos. |
@@ -126,10 +126,10 @@ Recommended product changes:
 - Add stable finding IDs to report comments and annotations.
 - Add `docs/RULES.md` with each finding ID, trigger condition, default severity, label, and tuning knobs.
 - Add suppression controls:
-  - ignore by finding ID
+  - ignore by finding ID (implemented as `rules.disabled`)
   - ignore by label
   - ignore by path pattern for PR checks
-  - downgrade severity by finding ID
+  - downgrade severity by finding ID (implemented as `rules.severityOverrides.notice`)
 
 Acceptance criteria:
 

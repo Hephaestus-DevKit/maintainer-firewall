@@ -309,6 +309,48 @@
         }
       }
     },
+    "rules": {
+      "description": "Controls per-finding policy overrides for suppressing noisy finding IDs or changing their severity.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "disabled": {
+          "description": "Exact finding IDs to suppress before reports, labels, annotations, JSON output, and failure checks are produced. Protected secret findings cannot be suppressed.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "examples": [["issue.environment.missing"]]
+        },
+        "severityOverrides": {
+          "description": "Exact finding IDs that should be emitted with a different severity. Disabled findings still remain suppressed, and protected secret findings cannot be downgraded.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "notice": {
+              "description": "Exact finding IDs to downgrade or force to notice severity.",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [],
+              "examples": [["pr.tests.missing"]]
+            },
+            "warning": {
+              "description": "Exact finding IDs to set to warning severity.",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [],
+              "examples": [["pr.linked_issue.missing"]]
+            },
+            "error": {
+              "description": "Exact finding IDs to set to error severity.",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [],
+              "examples": [["content.security_report.possible"]]
+            }
+          }
+        }
+      }
+    },
     "ignore": {
       "description": "Skips Maintainer Firewall for trusted automation, explicit skip labels, or configured title patterns.",
       "type": "object",

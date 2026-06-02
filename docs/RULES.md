@@ -60,6 +60,38 @@ labeling:
 
 `fail-on-findings: true` fails the workflow when warning or error findings exist. The default is advisory.
 
+## Rule Policy
+
+Use `rules.disabled` to suppress exact finding IDs after deterministic and AI findings are produced. Suppressed findings are removed before comments, labels, annotations, JSON reports, summaries, and failure checks.
+
+```yaml
+rules:
+  disabled:
+    - issue.environment.missing
+```
+
+Use `rules.severityOverrides` to change exact finding ID severity without hiding the finding:
+
+```yaml
+rules:
+  severityOverrides:
+    notice:
+      - pr.tests.missing
+    warning:
+      - pr.linked_issue.missing
+    error:
+      - content.security_report.possible
+```
+
+Policy rules are exact-match only. This avoids broad accidental suppression.
+
+Precedence:
+
+- `rules.disabled` wins over severity overrides.
+- If the same ID appears in multiple severity override lists, the strongest severity wins: `error`, then `warning`, then `notice`.
+- `content.secret.possible` is protected. It cannot be suppressed or downgraded, and AI analysis still skips when it fires.
+- Conflicting policy settings emit workflow warnings.
+
 ## Report Surfaces
 
 Finding IDs appear in:
@@ -79,6 +111,23 @@ Gentler issue intake:
 issue:
   minBodyCharacters: 80
   requireEnvironment: false
+```
+
+Suppress a noisy finding after calibration:
+
+```yaml
+rules:
+  disabled:
+    - issue.environment.missing
+```
+
+Downgrade a finding that should remain visible but not fail strict mode:
+
+```yaml
+rules:
+  severityOverrides:
+    notice:
+      - pr.tests.missing
 ```
 
 Strict pull request review:
@@ -102,4 +151,3 @@ security:
 ```
 
 Prefer tuning `security.reportPatterns` and `security.secretPatterns` instead of disabling security checks completely.
-

@@ -44,7 +44,7 @@ jobs:
   firewall:
     runs-on: ubuntu-latest
     steps:
-      - uses: wangjiehu/maintainer-firewall@v0.3.0
+      - uses: wangjiehu/maintainer-firewall@v0.4.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           dry-run: true
@@ -108,6 +108,7 @@ After the first successful run, confirm:
 - `dry-run` is still enabled for the first calibration run.
 - Comments are disabled or limited to findings, depending on your rollout mode.
 - Label writes are disabled or intentionally suppressed by dry-run.
+- Rule policy shows the expected disabled and severity override counts.
 - Suggested labels match your repository naming conventions.
 - The report's finding IDs match documented rules in [Rules](RULES.md).
 - No unexpected workflow failure occurred.
@@ -122,4 +123,3 @@ Recommended rollout:
 3. Enable comments on findings.
 4. Enable labels after the suggested labels look correct.
 5. Enable annotations or `fail-on-findings` only when maintainers explicitly want those surfaces.
-

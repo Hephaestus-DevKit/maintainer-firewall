@@ -2,6 +2,15 @@
 
 All notable changes to Maintainer Firewall will be documented in this file.
 
+## 0.4.0 - Rule Policy Tuning
+
+- Adds `rules.disabled` for suppressing exact finding IDs across comments, labels, annotations, JSON reports, summaries, and failure checks.
+- Adds `rules.severityOverrides.notice`, `rules.severityOverrides.warning`, and `rules.severityOverrides.error` for exact finding ID severity tuning.
+- Adds config diagnostics for disabled/override conflicts and duplicate severity override entries.
+- Keeps `content.secret.possible` protected so possible credential leaks cannot be suppressed or downgraded.
+- Shows rule policy state in the Actions step summary setup table.
+- Documents suppression and severity override workflows in README, Rules, Troubleshooting, Roadmap, and Architecture docs.
+
 ## 0.3.0 - Onboarding and Setup Clarity
 
 - Adds installation, rollout, rules, troubleshooting, and UX improvement planning docs.

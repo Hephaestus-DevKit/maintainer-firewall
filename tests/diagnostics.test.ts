@@ -26,4 +26,38 @@ describe("validateConfig", () => {
 
     expect(warnings.some((warning) => warning.includes(defaultConfig.labels.needsInfo))).toBe(true);
   });
+
+  it("warns about conflicting rule policy settings", () => {
+    const warnings = validateConfig({
+      ...defaultConfig,
+      rules: {
+        disabled: ["pr.tests.missing"],
+        severityOverrides: {
+          notice: ["pr.tests.missing", "issue.environment.missing"],
+          warning: ["issue.environment.missing"],
+          error: []
+        }
+      }
+    });
+
+    expect(warnings).toContain('rules.disabled includes "pr.tests.missing" and rules.severityOverrides also configures it; disabled wins.');
+    expect(warnings).toContain('rules.severityOverrides configures "issue.environment.missing" more than once (notice, warning); strongest severity wins.');
+  });
+
+  it("warns when protected findings are suppressed or downgraded", () => {
+    const warnings = validateConfig({
+      ...defaultConfig,
+      rules: {
+        disabled: ["content.secret.possible"],
+        severityOverrides: {
+          notice: ["content.secret.possible"],
+          warning: [],
+          error: []
+        }
+      }
+    });
+
+    expect(warnings).toContain('rules.disabled cannot suppress protected finding "content.secret.possible"; it will still be reported.');
+    expect(warnings).toContain('rules.severityOverrides cannot downgrade protected finding "content.secret.possible"; default severity remains error.');
+  });
 });

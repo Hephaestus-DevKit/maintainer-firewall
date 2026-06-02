@@ -1,5 +1,7 @@
 import type { FirewallConfig, Subject } from "./types.js";
 
+const PROTECTED_FINDING_IDS = new Set(["content.secret.possible"]);
+
 export interface SetupSummaryOptions {
   config: FirewallConfig;
   configPath: string;
@@ -20,6 +22,7 @@ export function composeSetupSummary(options: SetupSummaryOptions): string {
     ["Labels", labelState(options.config, options.dryRun)],
     ["Annotations", options.emitAnnotations ? "Enabled" : "Disabled"],
     ["JSON report", options.reportJsonPath || "Disabled"],
+    ["Rule policy", rulePolicyState(options.config)],
     ["AI analysis", aiState(options.config, options.openAiApiKeyProvided)],
     ["Failure policy", options.failOnFindings ? "Fail on warning or error findings" : "Advisory; workflow does not fail on findings"]
   ];
@@ -66,6 +69,19 @@ function aiState(config: FirewallConfig, openAiApiKeyProvided: boolean): string 
   return openAiApiKeyProvided
     ? `Enabled; model=${config.ai.model}; timeoutMs=${config.ai.timeoutMs}`
     : "Configured, but no API key was provided";
+}
+
+function rulePolicyState(config: FirewallConfig): string {
+  const disabledCount = config.rules.disabled.filter((id) => !PROTECTED_FINDING_IDS.has(id)).length;
+  const overrideCount = Object.entries(config.rules.severityOverrides).reduce(
+    (sum, [severity, ids]) => sum + ids.filter((id) => !PROTECTED_FINDING_IDS.has(id) || severity === "error").length,
+    0
+  );
+  if (disabledCount === 0 && overrideCount === 0) {
+    return "Default";
+  }
+
+  return `${disabledCount} disabled; ${overrideCount} severity override${overrideCount === 1 ? "" : "s"}`;
 }
 
 function escapeTable(value: string): string {
