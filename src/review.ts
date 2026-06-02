@@ -120,23 +120,28 @@ function nextStepsForOutcome(outcome: Outcome, findings: Finding[]): string[] {
   const coveredLabels = new Set<string>();
 
   if (outcome === "needs_info") {
-    steps.push("Ask the contributor for a minimal reproduction, versions, and expected versus actual behavior.");
+    addStep(steps, "Please add the missing context: a minimal reproduction, relevant versions, and expected versus actual behavior.");
     coveredLabels.add("needsInfo");
   }
 
   if (outcome === "needs_tests") {
-    steps.push("Ask for tests or a short explanation of why tests are not practical for this change.");
+    addStep(steps, "Please add tests, or explain why tests are not practical for this change.");
     coveredLabels.add("needsTests");
   }
 
   if (outcome === "possible_duplicate") {
-    steps.push("Compare the linked issue before starting a separate investigation.");
+    addStep(steps, "Please compare this with the linked issue before a maintainer starts a separate investigation.");
     coveredLabels.add("possibleDuplicate");
   }
 
   if (outcome === "needs_maintainer_review") {
     const securityFinding = findings.find((finding) => finding.label === "securityReview");
-    steps.push(securityFinding?.suggestion ?? "Route this to the maintainer who owns the touched area before merging.");
+    addStep(
+      steps,
+      securityFinding
+        ? friendlyStepForFinding(securityFinding)
+        : "A maintainer should route this to the owner of the touched area before merging."
+    );
     if (securityFinding) {
       coveredLabels.add("securityReview");
     }
@@ -148,12 +153,50 @@ function nextStepsForOutcome(outcome: Outcome, findings: Finding[]): string[] {
       continue;
     }
 
-    if (finding.suggestion && !steps.includes(finding.suggestion)) {
-      steps.push(finding.suggestion);
-    }
+    addStep(steps, friendlyStepForFinding(finding) ?? finding.suggestion);
   }
 
   return steps.slice(0, 5);
+}
+
+function addStep(steps: string[], step: string | undefined): void {
+  if (step && !steps.includes(step)) {
+    steps.push(step);
+  }
+}
+
+function friendlyStepForFinding(finding: Finding): string | undefined {
+  switch (finding.id) {
+    case "content.secret.possible":
+      return "Please remove the exposed value from public text, rotate the credential, and move follow-up to a private security channel.";
+    case "content.security_report.possible":
+      return "A maintainer should route this to the project's security owner before requesting public exploit details.";
+    case "issue.body.too_short":
+      return "Please add enough issue context for a maintainer to reproduce and assess the problem.";
+    case "issue.reproduction.missing":
+      return "Please add a minimal reproduction, exact steps, commands, or expected versus actual behavior.";
+    case "issue.environment.missing":
+      return "Please add relevant versions, runtime, operating system, browser, or environment details.";
+    case "issue.duplicate.possible":
+      return "Please compare this with the linked issue before a maintainer starts a separate investigation.";
+    case "issue.required_sections.missing":
+    case "pr.required_sections.missing":
+      return "Please fill out the missing template sections before review continues.";
+    case "pr.draft":
+      return "Please mark this pull request ready for review when it is no longer a draft.";
+    case "pr.body.too_short":
+      return "Please add the motivation, approach, test plan, and any review notes.";
+    case "pr.linked_issue.missing":
+      return "Please link the relevant issue or explain why one is not needed.";
+    case "pr.scope.large":
+      return "Please consider splitting unrelated changes into smaller pull requests.";
+    case "pr.tests.missing":
+      return "Please add tests, or explain why tests are not practical for this change.";
+    case "pr.sensitive_paths.changed":
+      return "A maintainer should route this through the owner of release, CI, or supply-chain settings.";
+    default:
+      return undefined;
+  }
 }
 
 function passedChecksForSubject(subject: Subject, findings: Finding[], config: FirewallConfig): string[] {

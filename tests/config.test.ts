@@ -55,4 +55,24 @@ describe("mergeConfig", () => {
     expect(warnings).toContain("config.security.secretPatterns[1] should be a string; using the default value for config.security.secretPatterns.");
     expect(warnings).toContain("config.ignoredUnknownKey is not a supported config key and will be ignored.");
   });
+
+  it("reports invalid enum values and below-minimum numbers", () => {
+    const warnings = configShapeWarnings({
+      comment: {
+        postWhen: "sometimes",
+        maxFindings: 0
+      },
+      ai: {
+        timeoutMs: 250
+      },
+      pullRequest: {
+        largeChangeThreshold: 0
+      }
+    });
+
+    expect(warnings).toContain("config.comment.postWhen should be one of: always, findings, never; using the default value.");
+    expect(warnings).toContain("config.comment.maxFindings should be at least 1; using 1 during normalization.");
+    expect(warnings).toContain("config.ai.timeoutMs should be at least 1000; using 1000 during normalization.");
+    expect(warnings).toContain("config.pullRequest.largeChangeThreshold should be at least 1; using 1 during normalization.");
+  });
 });

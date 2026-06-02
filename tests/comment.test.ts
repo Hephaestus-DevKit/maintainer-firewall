@@ -44,6 +44,7 @@ describe("composeReport", () => {
     expect(report).toContain("### Next steps");
     expect(report).not.toContain("- [ ]");
     expect(report).toContain("<details>");
+    expect(report).toContain("Suggested next step");
     expect(report).toContain("`needs-info`");
   });
 

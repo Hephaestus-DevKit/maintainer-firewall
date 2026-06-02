@@ -23,6 +23,7 @@ describe("analyzeSubject", () => {
       "issue.reproduction.missing",
       "issue.environment.missing"
     ]);
+    expect(findings.map((finding) => finding.suggestion).join(" ")).toContain("Please add");
   });
 
   it("flags PRs with code changes and no tests", () => {

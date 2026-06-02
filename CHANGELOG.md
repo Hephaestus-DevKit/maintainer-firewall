@@ -2,6 +2,13 @@
 
 All notable changes to Maintainer Firewall will be documented in this file.
 
+## 0.1.4 - Contributor-Friendly Reports
+
+- Rewrites prominent next steps to speak directly and respectfully to contributors instead of describing them in third person.
+- Updates deterministic finding suggestions and the details table heading to use contributor-friendly next-step language.
+- Keeps maintainer-only routing guidance explicit for security-sensitive or ownership-sensitive findings.
+- Adds workflow warnings for invalid `comment.postWhen` values and below-minimum numeric settings before normalization falls back to safe values.
+
 ## 0.1.3 - Skip State Cleanup
 
 - Refreshes an existing Maintainer Firewall report when an ignore rule starts skipping a subject, avoiding stale contributor instructions.

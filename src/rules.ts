@@ -34,7 +34,7 @@ function analyzeIssue(issue: IssueSubject, config: FirewallConfig): Finding[] {
       severity: "warning",
       title: "Issue body is short",
       details: `The issue body has ${body.length} characters. This project expects at least ${config.issue.minBodyCharacters}.`,
-      suggestion: "Ask for the missing context before a maintainer spends time investigating.",
+      suggestion: "Please add the missing context before a maintainer spends time investigating.",
       label: "needsInfo",
       source: "rule"
     });
@@ -48,7 +48,7 @@ function analyzeIssue(issue: IssueSubject, config: FirewallConfig): Finding[] {
       severity: "warning",
       title: "No clear reproduction details found",
       details: "The issue does not appear to include steps, a minimal example, commands, or expected versus actual behavior.",
-      suggestion: "Request a minimal reproduction or exact steps before triage.",
+      suggestion: "Please add a minimal reproduction or exact steps before triage.",
       label: "needsInfo",
       source: "rule"
     });
@@ -60,7 +60,7 @@ function analyzeIssue(issue: IssueSubject, config: FirewallConfig): Finding[] {
       severity: "notice",
       title: "Environment details may be missing",
       details: "The issue does not mention version, runtime, operating system, browser, or similar environment details.",
-      suggestion: "Ask for versions and environment details if they affect debugging.",
+      suggestion: "Please add versions and environment details if they affect debugging.",
       label: "needsInfo",
       source: "rule"
     });
@@ -74,7 +74,7 @@ function analyzeIssue(issue: IssueSubject, config: FirewallConfig): Finding[] {
         severity: "notice",
         title: "Possible duplicate issue",
         details: `A similar issue exists: #${topCandidate.number} "${redactByPatterns(topCandidate.title, config.security.secretPatterns)}" (${Math.round(topCandidate.similarity * 100)}% title overlap).`,
-        suggestion: `Compare with ${topCandidate.url} before starting a new investigation.`,
+        suggestion: `Please compare with ${topCandidate.url} before starting a new investigation.`,
         label: "possibleDuplicate",
         source: "rule"
       });
@@ -95,7 +95,7 @@ function analyzePullRequest(pr: PullRequestSubject, config: FirewallConfig): Fin
       severity: "notice",
       title: "Pull request is still a draft",
       details: "Draft pull requests are useful for early feedback, but they should stay out of the maintainer review queue.",
-      suggestion: "Wait for the author to mark the pull request ready for review.",
+      suggestion: "Please mark the pull request ready for review when it is ready for maintainer review.",
       label: "maintainerReview",
       source: "rule"
     });
@@ -107,7 +107,7 @@ function analyzePullRequest(pr: PullRequestSubject, config: FirewallConfig): Fin
       severity: "warning",
       title: "Pull request description is short",
       details: `The PR body has ${body.length} characters. This project expects at least ${config.pullRequest.minBodyCharacters}.`,
-      suggestion: "Ask for the motivation, approach, test plan, and review notes.",
+      suggestion: "Please add the motivation, approach, test plan, and review notes.",
       label: "needsInfo",
       source: "rule"
     });
@@ -121,7 +121,7 @@ function analyzePullRequest(pr: PullRequestSubject, config: FirewallConfig): Fin
       severity: "notice",
       title: "No linked issue found",
       details: "The PR body does not appear to link or close an issue.",
-      suggestion: "Ask the author to link the relevant issue or explain why one is not needed.",
+      suggestion: "Please link the relevant issue or explain why one is not needed.",
       label: "needsInfo",
       source: "rule"
     });
@@ -133,7 +133,7 @@ function analyzePullRequest(pr: PullRequestSubject, config: FirewallConfig): Fin
       severity: "warning",
       title: "Pull request has a large change set",
       details: `The PR changes ${stats.fileCount} files with ${stats.totalChanges} total additions/deletions.`,
-      suggestion: "Consider asking the author to split unrelated changes into smaller pull requests.",
+      suggestion: "Please consider splitting unrelated changes into smaller pull requests.",
       label: "largeScope",
       source: "rule"
     });
@@ -149,7 +149,7 @@ function analyzePullRequest(pr: PullRequestSubject, config: FirewallConfig): Fin
       severity: "warning",
       title: "Code changed without test changes",
       details: "The PR changes source files, but no matching test file changes were detected.",
-      suggestion: "Ask for tests or a clear explanation of why tests are not needed.",
+      suggestion: "Please add tests or a clear explanation of why tests are not needed.",
       label: "needsTests",
       source: "rule"
     });
@@ -165,7 +165,7 @@ function analyzePullRequest(pr: PullRequestSubject, config: FirewallConfig): Fin
       severity: "notice",
       title: "Sensitive files changed",
       details: `Sensitive paths changed: ${sensitiveFiles.slice(0, 5).join(", ")}${sensitiveFiles.length > 5 ? ", ..." : ""}.`,
-      suggestion: "Route this PR through a maintainer with ownership of release, CI, or supply-chain settings.",
+      suggestion: "A maintainer should route this PR through the owner of release, CI, or supply-chain settings.",
       label: "securityReview",
       source: "rule"
     });
@@ -187,7 +187,7 @@ function analyzeSharedContent(content: string, subjectKind: "issue" | "pr", conf
       severity: "error",
       title: "Possible exposed secret or credential",
       details: "The title or body appears to include a credential-like pattern. The value is intentionally not repeated here.",
-      suggestion: "Redact the value, rotate the credential, and move any investigation to a private security channel.",
+      suggestion: "Please redact the value, rotate the credential, and move any investigation to a private security channel.",
       label: "securityReview",
       source: "rule"
     });
@@ -199,7 +199,7 @@ function analyzeSharedContent(content: string, subjectKind: "issue" | "pr", conf
       severity: subjectKind === "issue" ? "warning" : "notice",
       title: "Possible security-sensitive report",
       details: `This ${subjectKind === "issue" ? "issue" : "pull request"} mentions security-sensitive language such as a vulnerability, exploit, CVE, or credential leak.`,
-      suggestion: "Route this to the project's security owner before requesting public exploit details.",
+      suggestion: "A maintainer should route this to the project's security owner before requesting public exploit details.",
       label: "securityReview",
       source: "rule"
     });
@@ -234,7 +234,7 @@ function addRequiredSectionFindings(
     severity: "warning",
     title: "Required template sections are missing",
     details: `Missing section${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}.`,
-    suggestion: "Ask the contributor to fill out the missing template sections before review.",
+    suggestion: "Please fill out the missing template sections before review.",
     label: "needsInfo",
     source: "rule"
   });

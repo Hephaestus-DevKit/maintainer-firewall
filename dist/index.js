@@ -47929,20 +47929,22 @@ function nextStepsForOutcome(outcome, findings) {
     const steps = [];
     const coveredLabels = new Set();
     if (outcome === "needs_info") {
-        steps.push("Ask the contributor for a minimal reproduction, versions, and expected versus actual behavior.");
+        addStep(steps, "Please add the missing context: a minimal reproduction, relevant versions, and expected versus actual behavior.");
         coveredLabels.add("needsInfo");
     }
     if (outcome === "needs_tests") {
-        steps.push("Ask for tests or a short explanation of why tests are not practical for this change.");
+        addStep(steps, "Please add tests, or explain why tests are not practical for this change.");
         coveredLabels.add("needsTests");
     }
     if (outcome === "possible_duplicate") {
-        steps.push("Compare the linked issue before starting a separate investigation.");
+        addStep(steps, "Please compare this with the linked issue before a maintainer starts a separate investigation.");
         coveredLabels.add("possibleDuplicate");
     }
     if (outcome === "needs_maintainer_review") {
         const securityFinding = findings.find((finding) => finding.label === "securityReview");
-        steps.push(securityFinding?.suggestion ?? "Route this to the maintainer who owns the touched area before merging.");
+        addStep(steps, securityFinding
+            ? friendlyStepForFinding(securityFinding)
+            : "A maintainer should route this to the owner of the touched area before merging.");
         if (securityFinding) {
             coveredLabels.add("securityReview");
         }
@@ -47952,11 +47954,47 @@ function nextStepsForOutcome(outcome, findings) {
         if (finding.label && coveredLabels.has(finding.label)) {
             continue;
         }
-        if (finding.suggestion && !steps.includes(finding.suggestion)) {
-            steps.push(finding.suggestion);
-        }
+        addStep(steps, friendlyStepForFinding(finding) ?? finding.suggestion);
     }
     return steps.slice(0, 5);
+}
+function addStep(steps, step) {
+    if (step && !steps.includes(step)) {
+        steps.push(step);
+    }
+}
+function friendlyStepForFinding(finding) {
+    switch (finding.id) {
+        case "content.secret.possible":
+            return "Please remove the exposed value from public text, rotate the credential, and move follow-up to a private security channel.";
+        case "content.security_report.possible":
+            return "A maintainer should route this to the project's security owner before requesting public exploit details.";
+        case "issue.body.too_short":
+            return "Please add enough issue context for a maintainer to reproduce and assess the problem.";
+        case "issue.reproduction.missing":
+            return "Please add a minimal reproduction, exact steps, commands, or expected versus actual behavior.";
+        case "issue.environment.missing":
+            return "Please add relevant versions, runtime, operating system, browser, or environment details.";
+        case "issue.duplicate.possible":
+            return "Please compare this with the linked issue before a maintainer starts a separate investigation.";
+        case "issue.required_sections.missing":
+        case "pr.required_sections.missing":
+            return "Please fill out the missing template sections before review continues.";
+        case "pr.draft":
+            return "Please mark this pull request ready for review when it is no longer a draft.";
+        case "pr.body.too_short":
+            return "Please add the motivation, approach, test plan, and any review notes.";
+        case "pr.linked_issue.missing":
+            return "Please link the relevant issue or explain why one is not needed.";
+        case "pr.scope.large":
+            return "Please consider splitting unrelated changes into smaller pull requests.";
+        case "pr.tests.missing":
+            return "Please add tests, or explain why tests are not practical for this change.";
+        case "pr.sensitive_paths.changed":
+            return "A maintainer should route this through the owner of release, CI, or supply-chain settings.";
+        default:
+            return undefined;
+    }
 }
 function passedChecksForSubject(subject, findings, config) {
     const ids = new Set(findings.map((finding) => finding.id));
@@ -48019,7 +48057,7 @@ function composeReport(subject, findings, config, summary) {
     lines.push("<details>");
     lines.push(`<summary>${findings.length} finding${findings.length === 1 ? "" : "s"} from enabled checks</summary>`);
     lines.push("");
-    lines.push("| Severity | Source | Finding | Suggested action |");
+    lines.push("| Severity | Source | Finding | Suggested next step |");
     lines.push("| --- | --- | --- | --- |");
     for (const finding of visibleFindings) {
         lines.push(`| ${finding.severity} | ${finding.source} | ${escapeTable(`${finding.title}: ${finding.details}`)} | ${escapeTable(finding.suggestion ?? "Review manually.")} |`);
@@ -48109,6 +48147,20 @@ var yaml_dist = __nccwpck_require__(8815);
 ;// CONCATENATED MODULE: ./src/config.ts
 
 
+const MINIMUM_VALUES = {
+    "config.issue.minBodyCharacters": 0,
+    "config.issue.duplicateSearchLimit": 0,
+    "config.pullRequest.minBodyCharacters": 0,
+    "config.pullRequest.largeChangeThreshold": 1,
+    "config.repository.maxGuidanceCharacters": 0,
+    "config.comment.maxFindings": 1,
+    "config.ai.maxInputCharacters": 1000,
+    "config.ai.maxOutputTokens": 100,
+    "config.ai.timeoutMs": 1000
+};
+const STRING_ENUM_VALUES = {
+    "config.comment.postWhen": ["always", "findings", "never"]
+};
 const defaultConfig = {
     version: 1,
     issue: {
@@ -48301,8 +48353,20 @@ function configShapeWarnings(override, base = defaultConfig, path = "config") {
     if (typeof base === "number" && (typeof override !== "number" || !Number.isFinite(override))) {
         return [`${path} should be a finite number; using the default value.`];
     }
+    if (typeof base === "number" && typeof override === "number") {
+        const minimum = MINIMUM_VALUES[path];
+        if (minimum !== undefined && override < minimum) {
+            return [`${path} should be at least ${minimum}; using ${minimum} during normalization.`];
+        }
+    }
     if (typeof base === "string" && typeof override !== "string") {
         return [`${path} should be a string; using the default value.`];
+    }
+    if (typeof base === "string" && typeof override === "string") {
+        const allowedValues = STRING_ENUM_VALUES[path];
+        if (allowedValues && !allowedValues.includes(override)) {
+            return [`${path} should be one of: ${allowedValues.join(", ")}; using the default value.`];
+        }
     }
     return [];
 }
@@ -48536,7 +48600,7 @@ function analyzeIssue(issue, config) {
             severity: "warning",
             title: "Issue body is short",
             details: `The issue body has ${body.length} characters. This project expects at least ${config.issue.minBodyCharacters}.`,
-            suggestion: "Ask for the missing context before a maintainer spends time investigating.",
+            suggestion: "Please add the missing context before a maintainer spends time investigating.",
             label: "needsInfo",
             source: "rule"
         });
@@ -48548,7 +48612,7 @@ function analyzeIssue(issue, config) {
             severity: "warning",
             title: "No clear reproduction details found",
             details: "The issue does not appear to include steps, a minimal example, commands, or expected versus actual behavior.",
-            suggestion: "Request a minimal reproduction or exact steps before triage.",
+            suggestion: "Please add a minimal reproduction or exact steps before triage.",
             label: "needsInfo",
             source: "rule"
         });
@@ -48559,7 +48623,7 @@ function analyzeIssue(issue, config) {
             severity: "notice",
             title: "Environment details may be missing",
             details: "The issue does not mention version, runtime, operating system, browser, or similar environment details.",
-            suggestion: "Ask for versions and environment details if they affect debugging.",
+            suggestion: "Please add versions and environment details if they affect debugging.",
             label: "needsInfo",
             source: "rule"
         });
@@ -48572,7 +48636,7 @@ function analyzeIssue(issue, config) {
                 severity: "notice",
                 title: "Possible duplicate issue",
                 details: `A similar issue exists: #${topCandidate.number} "${redactByPatterns(topCandidate.title, config.security.secretPatterns)}" (${Math.round(topCandidate.similarity * 100)}% title overlap).`,
-                suggestion: `Compare with ${topCandidate.url} before starting a new investigation.`,
+                suggestion: `Please compare with ${topCandidate.url} before starting a new investigation.`,
                 label: "possibleDuplicate",
                 source: "rule"
             });
@@ -48590,7 +48654,7 @@ function analyzePullRequest(pr, config) {
             severity: "notice",
             title: "Pull request is still a draft",
             details: "Draft pull requests are useful for early feedback, but they should stay out of the maintainer review queue.",
-            suggestion: "Wait for the author to mark the pull request ready for review.",
+            suggestion: "Please mark the pull request ready for review when it is ready for maintainer review.",
             label: "maintainerReview",
             source: "rule"
         });
@@ -48601,7 +48665,7 @@ function analyzePullRequest(pr, config) {
             severity: "warning",
             title: "Pull request description is short",
             details: `The PR body has ${body.length} characters. This project expects at least ${config.pullRequest.minBodyCharacters}.`,
-            suggestion: "Ask for the motivation, approach, test plan, and review notes.",
+            suggestion: "Please add the motivation, approach, test plan, and review notes.",
             label: "needsInfo",
             source: "rule"
         });
@@ -48613,7 +48677,7 @@ function analyzePullRequest(pr, config) {
             severity: "notice",
             title: "No linked issue found",
             details: "The PR body does not appear to link or close an issue.",
-            suggestion: "Ask the author to link the relevant issue or explain why one is not needed.",
+            suggestion: "Please link the relevant issue or explain why one is not needed.",
             label: "needsInfo",
             source: "rule"
         });
@@ -48624,7 +48688,7 @@ function analyzePullRequest(pr, config) {
             severity: "warning",
             title: "Pull request has a large change set",
             details: `The PR changes ${stats.fileCount} files with ${stats.totalChanges} total additions/deletions.`,
-            suggestion: "Consider asking the author to split unrelated changes into smaller pull requests.",
+            suggestion: "Please consider splitting unrelated changes into smaller pull requests.",
             label: "largeScope",
             source: "rule"
         });
@@ -48637,7 +48701,7 @@ function analyzePullRequest(pr, config) {
             severity: "warning",
             title: "Code changed without test changes",
             details: "The PR changes source files, but no matching test file changes were detected.",
-            suggestion: "Ask for tests or a clear explanation of why tests are not needed.",
+            suggestion: "Please add tests or a clear explanation of why tests are not needed.",
             label: "needsTests",
             source: "rule"
         });
@@ -48651,7 +48715,7 @@ function analyzePullRequest(pr, config) {
             severity: "notice",
             title: "Sensitive files changed",
             details: `Sensitive paths changed: ${sensitiveFiles.slice(0, 5).join(", ")}${sensitiveFiles.length > 5 ? ", ..." : ""}.`,
-            suggestion: "Route this PR through a maintainer with ownership of release, CI, or supply-chain settings.",
+            suggestion: "A maintainer should route this PR through the owner of release, CI, or supply-chain settings.",
             label: "securityReview",
             source: "rule"
         });
@@ -48669,7 +48733,7 @@ function analyzeSharedContent(content, subjectKind, config) {
             severity: "error",
             title: "Possible exposed secret or credential",
             details: "The title or body appears to include a credential-like pattern. The value is intentionally not repeated here.",
-            suggestion: "Redact the value, rotate the credential, and move any investigation to a private security channel.",
+            suggestion: "Please redact the value, rotate the credential, and move any investigation to a private security channel.",
             label: "securityReview",
             source: "rule"
         });
@@ -48680,7 +48744,7 @@ function analyzeSharedContent(content, subjectKind, config) {
             severity: subjectKind === "issue" ? "warning" : "notice",
             title: "Possible security-sensitive report",
             details: `This ${subjectKind === "issue" ? "issue" : "pull request"} mentions security-sensitive language such as a vulnerability, exploit, CVE, or credential leak.`,
-            suggestion: "Route this to the project's security owner before requesting public exploit details.",
+            suggestion: "A maintainer should route this to the project's security owner before requesting public exploit details.",
             label: "securityReview",
             source: "rule"
         });
@@ -48703,7 +48767,7 @@ function addRequiredSectionFindings(findings, body, subjectKind, requiredSection
         severity: "warning",
         title: "Required template sections are missing",
         details: `Missing section${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}.`,
-        suggestion: "Ask the contributor to fill out the missing template sections before review.",
+        suggestion: "Please fill out the missing template sections before review.",
         label: "needsInfo",
         source: "rule"
     });

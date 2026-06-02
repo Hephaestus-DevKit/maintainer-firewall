@@ -44,7 +44,7 @@ export function composeReport(
   lines.push("<details>");
   lines.push(`<summary>${findings.length} finding${findings.length === 1 ? "" : "s"} from enabled checks</summary>`);
   lines.push("");
-  lines.push("| Severity | Source | Finding | Suggested action |");
+  lines.push("| Severity | Source | Finding | Suggested next step |");
   lines.push("| --- | --- | --- | --- |");
 
   for (const finding of visibleFindings) {

@@ -5,6 +5,22 @@ import type { FirewallConfig } from "./types.js";
 
 type Octokit = ReturnType<typeof github.getOctokit>;
 
+const MINIMUM_VALUES: Record<string, number> = {
+  "config.issue.minBodyCharacters": 0,
+  "config.issue.duplicateSearchLimit": 0,
+  "config.pullRequest.minBodyCharacters": 0,
+  "config.pullRequest.largeChangeThreshold": 1,
+  "config.repository.maxGuidanceCharacters": 0,
+  "config.comment.maxFindings": 1,
+  "config.ai.maxInputCharacters": 1000,
+  "config.ai.maxOutputTokens": 100,
+  "config.ai.timeoutMs": 1000
+};
+
+const STRING_ENUM_VALUES: Record<string, string[]> = {
+  "config.comment.postWhen": ["always", "findings", "never"]
+};
+
 export const defaultConfig: FirewallConfig = {
   version: 1,
   issue: {
@@ -222,8 +238,22 @@ export function configShapeWarnings(
     return [`${path} should be a finite number; using the default value.`];
   }
 
+  if (typeof base === "number" && typeof override === "number") {
+    const minimum = MINIMUM_VALUES[path];
+    if (minimum !== undefined && override < minimum) {
+      return [`${path} should be at least ${minimum}; using ${minimum} during normalization.`];
+    }
+  }
+
   if (typeof base === "string" && typeof override !== "string") {
     return [`${path} should be a string; using the default value.`];
+  }
+
+  if (typeof base === "string" && typeof override === "string") {
+    const allowedValues = STRING_ENUM_VALUES[path];
+    if (allowedValues && !allowedValues.includes(override)) {
+      return [`${path} should be one of: ${allowedValues.join(", ")}; using the default value.`];
+    }
   }
 
   return [];

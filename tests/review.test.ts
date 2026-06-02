@@ -52,6 +52,28 @@ describe("createReviewSummary", () => {
     expect(summary.outcome).toBe("needs_tests");
     expect(summary.score).toBe(75);
     expect(summary.labels).toContain("needs-tests");
+    expect(summary.nextSteps).toContain("Please add tests, or explain why tests are not practical for this change.");
+    expect(summary.nextSteps).toContain("Please link the relevant issue or explain why one is not needed.");
+    expect(summary.nextSteps.join(" ")).not.toContain("Ask ");
+  });
+
+  it("uses contributor-friendly missing info steps", () => {
+    const findings: Finding[] = [
+      {
+        id: "issue.reproduction.missing",
+        severity: "warning",
+        title: "No clear reproduction details found",
+        details: "No steps were found.",
+        suggestion: "Ask for reproduction details.",
+        label: "needsInfo",
+        source: "rule"
+      }
+    ];
+
+    const summary = createReviewSummary(subject, findings, defaultConfig);
+
+    expect(summary.nextSteps[0]).toBe("Please add the missing context: a minimal reproduction, relevant versions, and expected versus actual behavior.");
+    expect(summary.nextSteps.join(" ")).not.toContain("Ask ");
   });
 
   it("honors disabled labels", () => {
@@ -101,6 +123,7 @@ describe("createReviewSummary", () => {
     const summary = createReviewSummary(subject, findings, defaultConfig);
 
     expect(summary.outcome).toBe("needs_maintainer_review");
+    expect(summary.nextSteps[0]).toBe("A maintainer should route this to the project's security owner before requesting public exploit details.");
   });
 
   it("includes required section pass checks when configured", () => {
