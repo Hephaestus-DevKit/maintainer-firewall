@@ -7,7 +7,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "bundle": "ncc build src/index.ts -o dist --source-map --license licenses.txt",
+    "ci": "npm run check && npm run verify:dist",
     "demo": "npm run build && node scripts/demo.mjs",
+    "release:check": "npm run check && npm run demo && npm run verify:dist && npm audit --audit-level=moderate",
     "verify:dist": "npm run bundle && git diff --exit-code -- dist",
     "test": "vitest run",
     "check": "npm run build && npm run test"

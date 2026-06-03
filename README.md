@@ -11,6 +11,7 @@ It does not try to prove whether a contribution was AI-generated. Instead, it as
 - [Rules](docs/RULES.md): finding IDs, trigger conditions, labels, severities, and tuning knobs.
 - [Troubleshooting](docs/TROUBLESHOOTING.md): common setup, permission, AI, comment, label, and release issues.
 - [Architecture](docs/ARCHITECTURE.md): internal flow and safety model.
+- [Maintenance](docs/MAINTENANCE.md): PR review, release, dependency, and diagnostic maintenance gates.
 
 Use Maintainer Firewall when you want advisory triage help. Do not use it as an AI-detector, automatic rejection system, or replacement for maintainer judgment.
 
@@ -316,7 +317,7 @@ See [Rules](docs/RULES.md) for finding IDs, default severities, labels, suppress
 
 ```bash
 npm install
-npm run check
+npm run ci
 npm run demo
 npm run bundle
 npm run verify:dist
@@ -329,8 +330,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the internal flow and saf
 ## Release
 
 ```bash
-npm run check
-npm run verify:dist
+npm run release:check
 git tag v0.6.0
 git push origin main v0.6.0
 ```

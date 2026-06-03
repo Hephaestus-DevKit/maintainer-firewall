@@ -1,5 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
+
+interface PackageJson {
+  scripts: Record<string, string>;
+}
 
 describe("project documentation", () => {
   it("does not list shipped report surfaces as near-term roadmap work", () => {
@@ -24,6 +29,32 @@ describe("project documentation", () => {
     expect(readme).toContain("docs/ROLLOUT_PLAYBOOK.md");
     expect(readme).toContain("docs/RULES.md");
     expect(readme).toContain("docs/TROUBLESHOOTING.md");
+    expect(readme).toContain("docs/MAINTENANCE.md");
+  });
+
+  it("keeps maintenance scripts wired into workflows and contributor docs", () => {
+    const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as PackageJson;
+    const testWorkflow = readFileSync(".github/workflows/test.yml", "utf8");
+    const releaseWorkflow = readFileSync(".github/workflows/release.yml", "utf8");
+    const contributing = readFileSync("CONTRIBUTING.md", "utf8");
+    const pullRequestTemplate = readFileSync(".github/pull_request_template.md", "utf8");
+    const maintenance = readFileSync("docs/MAINTENANCE.md", "utf8");
+
+    expect(packageJson.scripts.ci).toContain("npm run check");
+    expect(packageJson.scripts.ci).toContain("npm run verify:dist");
+    expect(packageJson.scripts["release:check"]).toContain("npm run demo");
+    expect(packageJson.scripts["release:check"]).toContain("npm audit --audit-level=moderate");
+
+    expect(testWorkflow).toContain("npm run ci");
+    expect(releaseWorkflow).toContain("npm run release:check");
+    expect(contributing).toContain("docs/MAINTENANCE.md");
+    expect(pullRequestTemplate).toContain("New best-effort failures are surfaced through runtime diagnostics");
+    expect(maintenance).toContain("Release Checklist");
+  });
+
+  it("keeps updated workflow YAML parseable", () => {
+    expect(() => parse(readFileSync(".github/workflows/test.yml", "utf8"))).not.toThrow();
+    expect(() => parse(readFileSync(".github/workflows/release.yml", "utf8"))).not.toThrow();
   });
 
   it("keeps rollout workflow examples on the current release tag", () => {
