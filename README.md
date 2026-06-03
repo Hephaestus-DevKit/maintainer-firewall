@@ -319,11 +319,10 @@ See [Rules](docs/RULES.md) for finding IDs, default severities, labels, suppress
 npm install
 npm run ci
 npm run demo
-npm run bundle
-npm run verify:dist
 ```
 
 The bundled action entry point is `dist/index.js`.
+Run `npm run bundle` when runtime source changes need updated bundled output.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the internal flow and safety model.
 

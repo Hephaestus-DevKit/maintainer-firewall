@@ -36,12 +36,12 @@ body:
     id: version
     attributes:
       label: Version or commit
-      placeholder: v0.1.0 or commit SHA
+      placeholder: v0.6.0 or commit SHA
     validations:
       required: true
   - type: textarea
     id: logs
     attributes:
       label: Logs
-      description: Redact secrets before pasting logs.
+      description: Include relevant config warnings or runtime warnings. Redact secrets before pasting logs.
       render: text

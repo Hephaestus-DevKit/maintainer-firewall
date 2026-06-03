@@ -8,11 +8,10 @@ Thanks for helping improve Maintainer Firewall. The project is intentionally mai
 npm install
 npm run ci
 npm run demo
-npm run bundle
-npm run verify:dist
 ```
 
 Commit source changes together with the bundled `dist/` output.
+Run `npm run bundle` when runtime source changes need updated bundled output.
 Use `npm run release:check` before tagging a release.
 See [docs/MAINTENANCE.md](docs/MAINTENANCE.md) for review, release, dependency, and diagnostic maintenance gates.
 

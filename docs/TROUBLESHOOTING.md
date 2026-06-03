@@ -162,9 +162,8 @@ This repository commits the bundled action under `dist/`.
 After runtime source changes:
 
 ```bash
-npm run check
 npm run bundle
-npm run verify:dist
+npm run ci
 ```
 
 If `verify:dist` reports differences, commit the updated `dist/index.js` and `dist/index.js.map` with the source changes.

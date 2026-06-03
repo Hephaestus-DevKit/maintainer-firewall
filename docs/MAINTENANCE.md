@@ -10,11 +10,12 @@ Use these checks by default:
 | --- | --- |
 | Normal pull request | `npm run ci` |
 | Report text, scoring, labels, or summaries changed | `npm run ci` and `npm run demo` |
-| Runtime source changed | `npm run bundle` and `npm run verify:dist` |
+| Runtime source changed | `npm run bundle`, then `npm run ci` |
 | Release candidate | `npm run release:check` |
 
 `npm run ci` runs the TypeScript build, test suite, and bundled `dist/` verification.
 `npm run release:check` adds the demo run and moderate-severity dependency audit.
+`npm run bundle` updates the committed action bundle after runtime source changes.
 
 ## Pull Request Review
 
@@ -23,7 +24,7 @@ Check these before merging:
 - The change matches Maintainer Firewall's maintainer-first product principles.
 - New or changed behavior has focused tests.
 - Runtime source changes include the bundled `dist/index.js` and `dist/index.js.map`.
-- Public inputs, outputs, finding IDs, examples, README tables, and docs are updated together.
+- Public inputs, outputs, finding IDs, report JSON shape, examples, README tables, and docs are updated together.
 - Best-effort failures are recorded through runtime diagnostics instead of only appearing in logs.
 - Secret-like values remain redacted in comments, summaries, annotations, outputs, and JSON reports.
 
@@ -51,7 +52,7 @@ For dependency PRs:
 
 - Run `npm run ci`.
 - Run `npm run release:check` when the update touches build, bundle, test, release, or GitHub Actions tooling.
-- Inspect bundled `dist/` changes when runtime dependencies change.
+- Run `npm run bundle` and inspect bundled `dist/` changes when runtime dependencies change.
 - Keep action version bumps and generated lockfile changes in the same PR.
 
 ## Diagnostic Maintenance
