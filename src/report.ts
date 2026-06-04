@@ -64,7 +64,7 @@ function sanitizeSubject(subject: Subject, config: FirewallConfig): NonNullable<
     title: redactByPatterns(subject.title, config.security.secretPatterns),
     author: subject.author,
     url: subject.htmlUrl,
-    labels: subject.labels
+    labels: subject.labels.map((label) => redactByPatterns(label, config.security.secretPatterns))
   };
 
   if (subject.kind === "issue") {
@@ -74,7 +74,7 @@ function sanitizeSubject(subject: Subject, config: FirewallConfig): NonNullable<
   return {
     ...base,
     changedFiles: subject.changedFiles.map((file) => ({
-      filename: file.filename,
+      filename: redactByPatterns(file.filename, config.security.secretPatterns),
       status: file.status,
       additions: file.additions,
       deletions: file.deletions

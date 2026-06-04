@@ -50,7 +50,7 @@ jobs:
           dry-run: true
 ```
 
-After the first run, inspect the step summary. It now shows both the review report and a setup table that confirms active surfaces such as dry-run, comments, labels, annotations, JSON report output, diagnostics, AI status, and failure policy.
+After the first run, inspect the step summary. It now shows both the review report and a setup table that confirms active surfaces such as dry-run, comments, labels, annotations, JSON report output, effective config output, diagnostics, AI status, and failure policy.
 
 ## Fork Pull Requests
 
@@ -110,6 +110,7 @@ After the first successful run, confirm:
 - Comments are disabled or limited to findings, depending on your rollout mode.
 - Label writes are disabled or intentionally suppressed by dry-run.
 - Rule policy shows the expected disabled and severity override counts.
+- `effective-config-json-path`, when configured, contains the expected redacted active thresholds and surfaces.
 - Suggested labels match your repository naming conventions.
 - The report's finding IDs match documented rules in [Rules](RULES.md).
 - No unexpected workflow failure occurred.

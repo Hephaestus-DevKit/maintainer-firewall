@@ -89,6 +89,69 @@ describe("analyzeSubject", () => {
     expect(findings.map((finding) => finding.id)).not.toContain("pr.tests.missing");
   });
 
+  it("does not count deleted test files as test coverage for code changes", () => {
+    const pr: PullRequestSubject = {
+      kind: "pull_request",
+      number: 16,
+      title: "Update parser",
+      body: "This updates parser behavior and closes #10. It changes validation for nested tuples in production.",
+      author: "contributor",
+      labels: [],
+      htmlUrl: "https://github.com/example/repo/pull/16",
+      draft: false,
+      baseRef: "main",
+      headRef: "parser",
+      changedFiles: [
+        {
+          filename: "src/parser.ts",
+          status: "modified",
+          additions: 20,
+          deletions: 5,
+          changes: 25
+        },
+        {
+          filename: "src/parser.test.ts",
+          status: "removed",
+          additions: 0,
+          deletions: 12,
+          changes: 12
+        }
+      ]
+    };
+
+    const findings = analyzeSubject(pr, defaultConfig);
+
+    expect(findings.map((finding) => finding.id)).toContain("pr.tests.missing");
+  });
+
+  it("treats modern JavaScript and TypeScript module files as code changes", () => {
+    const pr: PullRequestSubject = {
+      kind: "pull_request",
+      number: 17,
+      title: "Update runtime modules",
+      body: "This updates runtime module behavior and closes #10. It changes loader validation in production.",
+      author: "contributor",
+      labels: [],
+      htmlUrl: "https://github.com/example/repo/pull/17",
+      draft: false,
+      baseRef: "main",
+      headRef: "runtime-modules",
+      changedFiles: [
+        {
+          filename: "src/loader.cts",
+          status: "modified",
+          additions: 10,
+          deletions: 1,
+          changes: 11
+        }
+      ]
+    };
+
+    const findings = analyzeSubject(pr, defaultConfig);
+
+    expect(findings.map((finding) => finding.id)).toContain("pr.tests.missing");
+  });
+
   it("routes possible security reports to security review", () => {
     const issue: IssueSubject = {
       kind: "issue",
@@ -194,6 +257,123 @@ describe("analyzeSubject", () => {
     const findings = analyzeSubject(pr, config);
 
     expect(findings.map((finding) => finding.id)).toContain("pr.required_sections.missing");
+    expect(findings.find((finding) => finding.id === "pr.required_sections.missing")?.references).toEqual([
+      {
+        source: "config",
+        path: "pullRequest.requiredSections",
+        label: "Test plan"
+      }
+    ]);
+  });
+
+  it("does not accept required sections that only appear inside fenced code", () => {
+    const pr: PullRequestSubject = {
+      kind: "pull_request",
+      number: 24,
+      title: "Improve renderer",
+      body: "This improves rendering and closes #12.\n\n```md\n## Test plan\nnpm test\n```",
+      author: "contributor",
+      labels: [],
+      htmlUrl: "https://github.com/example/repo/pull/24",
+      draft: false,
+      baseRef: "main",
+      headRef: "renderer",
+      changedFiles: []
+    };
+    const config = {
+      ...defaultConfig,
+      pullRequest: {
+        ...defaultConfig.pullRequest,
+        requiredSections: ["Test plan"]
+      }
+    };
+
+    const findings = analyzeSubject(pr, config);
+
+    expect(findings.map((finding) => finding.id)).toContain("pr.required_sections.missing");
+  });
+
+  it("does not treat markdown issue-number headings as linked issues", () => {
+    const pr: PullRequestSubject = {
+      kind: "pull_request",
+      number: 25,
+      title: "Improve renderer",
+      body: "This improves rendering and documents migration behavior.\n\n#123\n\nNo related issue yet.",
+      author: "contributor",
+      labels: [],
+      htmlUrl: "https://github.com/example/repo/pull/25",
+      draft: false,
+      baseRef: "main",
+      headRef: "renderer",
+      changedFiles: []
+    };
+
+    const findings = analyzeSubject(pr, defaultConfig);
+
+    expect(findings.map((finding) => finding.id)).toContain("pr.linked_issue.missing");
+  });
+
+  it("flags missing configured issue sections", () => {
+    const issue: IssueSubject = {
+      kind: "issue",
+      number: 26,
+      title: "Parser crash",
+      body: "Version 1.2.3 crashes after running the documented reproduction command with expected versus actual behavior.",
+      author: "reporter",
+      labels: [],
+      htmlUrl: "https://github.com/example/repo/issues/26",
+      duplicateCandidates: []
+    };
+    const config = {
+      ...defaultConfig,
+      issue: {
+        ...defaultConfig.issue,
+        requiredSections: ["Environment"]
+      }
+    };
+
+    const findings = analyzeSubject(issue, config);
+
+    expect(findings.map((finding) => finding.id)).toContain("issue.required_sections.missing");
+  });
+
+  it("honors disabled issue and pull request rule groups", () => {
+    expect(analyzeSubject({
+      kind: "issue",
+      number: 27,
+      title: "Crash",
+      body: "",
+      author: "reporter",
+      labels: [],
+      htmlUrl: "https://github.com/example/repo/issues/27",
+      duplicateCandidates: []
+    }, {
+      ...defaultConfig,
+      issue: {
+        ...defaultConfig.issue,
+        enabled: false
+      }
+    })).toEqual([]);
+
+    expect(analyzeSubject({
+      kind: "pull_request",
+      number: 28,
+      title: "Change code",
+      body: "",
+      author: "contributor",
+      labels: [],
+      htmlUrl: "https://github.com/example/repo/pull/28",
+      draft: false,
+      baseRef: "main",
+      headRef: "change",
+      changedFiles: []
+    }, {
+      ...defaultConfig,
+      pullRequest: {
+        ...defaultConfig.pullRequest,
+        enabled: false
+      }
+    })).toEqual([]);
   });
 
   it("accepts configured sections as markdown headings", () => {

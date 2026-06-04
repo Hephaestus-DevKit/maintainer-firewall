@@ -29,4 +29,18 @@ describe("getSkipReason", () => {
       labels: ["skip-firewall"]
     }, defaultConfig)).toContain("skip-firewall");
   });
+
+  it("ignores unsafe title regex patterns", () => {
+    expect(getSkipReason({
+      ...subject,
+      author: "contributor",
+      title: "aaaaaaaaaaaaaaaaaaaa"
+    }, {
+      ...defaultConfig,
+      ignore: {
+        ...defaultConfig.ignore,
+        titlePatterns: ["(a+)+$"]
+      }
+    })).toBeNull();
+  });
 });

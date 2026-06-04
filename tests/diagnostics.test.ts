@@ -3,6 +3,10 @@ import { defaultConfig } from "../src/config.js";
 import { validateConfig } from "../src/diagnostics.js";
 
 describe("validateConfig", () => {
+  it("accepts the default config without diagnostics", () => {
+    expect(validateConfig(defaultConfig)).toEqual([]);
+  });
+
   it("warns about invalid regex patterns", () => {
     const warnings = validateConfig({
       ...defaultConfig,
@@ -13,6 +17,18 @@ describe("validateConfig", () => {
     });
 
     expect(warnings.some((warning) => warning.includes("security.secretPatterns"))).toBe(true);
+  });
+
+  it("warns about unsafe configured regex patterns", () => {
+    const warnings = validateConfig({
+      ...defaultConfig,
+      security: {
+        ...defaultConfig.security,
+        reportPatterns: ["(a+)+$"]
+      }
+    });
+
+    expect(warnings).toContain("security.reportPatterns[0] contains a potentially unsafe regular expression and will be ignored.");
   });
 
   it("warns about duplicate configured labels", () => {

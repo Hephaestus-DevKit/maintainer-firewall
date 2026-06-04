@@ -1,4 +1,5 @@
 import type { FirewallConfig, Subject } from "./types.js";
+import { compileConfigRegex } from "./regex.js";
 
 export function getSkipReason(subject: Subject, config: FirewallConfig): string | null {
   if (matchesCaseInsensitive(config.ignore.authors, subject.author)) {
@@ -11,11 +12,7 @@ export function getSkipReason(subject: Subject, config: FirewallConfig): string 
   }
 
   const titlePattern = config.ignore.titlePatterns.find((pattern) => {
-    try {
-      return new RegExp(pattern, "i").test(subject.title);
-    } catch {
-      return false;
-    }
+    return compileConfigRegex(pattern, "i")?.test(subject.title) ?? false;
   });
 
   if (titlePattern) {

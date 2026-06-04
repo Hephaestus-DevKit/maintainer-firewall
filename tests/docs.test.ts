@@ -46,6 +46,13 @@ describe("project documentation", () => {
     expect(readme).toContain("docs/RULES.md");
     expect(readme).toContain("docs/TROUBLESHOOTING.md");
     expect(readme).toContain("docs/MAINTENANCE.md");
+    expect(readme).toContain("docs/V1_CONTRACT.md");
+    expect(readme).toContain("docs/MARKETPLACE_READINESS.md");
+    expect(readme).toContain("docs/ADOPTION_PLAYBOOK.md");
+    expect(readme).toContain("docs/PILOT_RUNBOOK.md");
+    expect(readme).toContain("docs/EVALUATION.md");
+    expect(readme).toContain("docs/AI_DATA_BOUNDARY.md");
+    expect(readme).toContain("docs/METRICS.md");
   });
 
   it("keeps maintenance scripts wired into workflows and contributor docs", () => {
@@ -59,9 +66,16 @@ describe("project documentation", () => {
     const maintenance = readFileSync("docs/MAINTENANCE.md", "utf8");
 
     expect(packageJson.scripts.ci).toContain("npm run check");
+    expect(packageJson.scripts.ci).toContain("npm run evaluate");
     expect(packageJson.scripts.ci).toContain("npm run verify:dist");
     expect(packageJson.scripts["release:check"]).toContain("npm run demo");
+    expect(packageJson.scripts["release:check"]).toContain("npm run evaluate");
+    expect(packageJson.scripts["release:check"]).toContain("npm run coverage");
     expect(packageJson.scripts["release:check"]).toContain("npm audit --audit-level=moderate");
+    expect(packageJson.scripts["market:check"]).toContain("npm run evaluate");
+    expect(packageJson.scripts["market:check"]).toContain("npm pack --dry-run");
+    expect(packageJson.scripts["metrics:summary"]).toContain("scripts/summarize-metrics.mjs");
+    expect(packageJson.scripts["market:check"]).toContain("scripts/market-check.mjs");
 
     expect(testWorkflow).toContain("npm run ci");
     expect(releaseWorkflow).toContain("npm run release:check");
@@ -72,6 +86,9 @@ describe("project documentation", () => {
     expect(pullRequestTemplate).toContain("New best-effort failures are surfaced through runtime diagnostics");
     expect(maintenance).toContain("Release Checklist");
     expect(maintenance).toContain("`npm run bundle`, then `npm run ci`");
+    expect(maintenance).toContain("npm run market:check");
+    expect(maintenance).toContain("npm run evaluate");
+    expect(readFileSync("docs/METRICS.md", "utf8")).toContain("npm run metrics:summary");
   });
 
   it("keeps routine docs on canonical maintenance commands", () => {
@@ -86,6 +103,21 @@ describe("project documentation", () => {
   it("keeps updated workflow YAML parseable", () => {
     expect(() => parse(readFileSync(".github/workflows/test.yml", "utf8"))).not.toThrow();
     expect(() => parse(readFileSync(".github/workflows/release.yml", "utf8"))).not.toThrow();
+    expect(() => parse(readFileSync(".github/workflows/codeql.yml", "utf8"))).not.toThrow();
+    expect(() => parse(readFileSync(".github/workflows/scorecard.yml", "utf8"))).not.toThrow();
+    expect(() => parse(readFileSync("examples/workflow.metrics.yml", "utf8"))).not.toThrow();
+  });
+
+  it("keeps marketplace preset configs parseable and linked", () => {
+    const readme = readFileSync("README.md", "utf8");
+    for (const path of [
+      "examples/config.library.yml",
+      "examples/config.monorepo.yml",
+      "examples/config.security-sensitive.yml"
+    ]) {
+      expect(() => parse(readFileSync(path, "utf8"))).not.toThrow();
+      expect(readme).toContain(path);
+    }
   });
 
   it("keeps issue templates aligned with current support and maintenance surfaces", () => {
@@ -110,9 +142,29 @@ describe("project documentation", () => {
       "examples/workflow.audit.yml",
       "examples/workflow.advisory.yml",
       "examples/workflow.collaborative.yml",
-      "examples/workflow.strict.yml"
+      "examples/workflow.strict.yml",
+      "examples/workflow.metrics.yml"
     ]) {
       expect(readFileSync(path, "utf8")).toContain("wangjiehu/maintainer-firewall@v0.6.0");
+    }
+  });
+
+  it("keeps evaluation fixtures and docs wired to the evaluation command", () => {
+    const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as PackageJson;
+    const evaluation = readFileSync("docs/EVALUATION.md", "utf8");
+
+    expect(packageJson.scripts.evaluate).toContain("scripts/evaluate.mjs");
+    expect(packageJson.scripts["evaluate:ai"]).toContain("scripts/evaluate-ai.mjs");
+    expect(evaluation).toContain("fixtures/evaluation/");
+    expect(evaluation).toContain("npm run evaluate");
+    expect(evaluation).toContain("npm run evaluate:ai");
+    for (const path of [
+      "fixtures/evaluation/clean-issue.json",
+      "fixtures/evaluation/missing-tests-pr.json",
+      "fixtures/evaluation/prompt-injection-ai-eligible.json",
+      "fixtures/evaluation/possible-secret-skips-ai.json"
+    ]) {
+      expect(() => JSON.parse(readFileSync(path, "utf8"))).not.toThrow();
     }
   });
 });

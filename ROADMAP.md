@@ -14,9 +14,14 @@
 - Repository guidance loading from `CONTRIBUTING.md`, pull request templates, and issue templates.
 - Optional OpenAI-assisted semantic review with timeout, truncation, response normalization, and redaction.
 - Configuration schema guidance with editor descriptions and runtime shape warnings.
+- Redacted effective-configuration JSON reports for rollout debugging.
+- Deterministic evaluation fixtures for rule, duplicate, prompt-injection, and AI eligibility boundaries.
+- Metrics workflow example for audit-mode calibration artifacts.
 
 ## Near Term
 
+- Real-world audit-mode pilots across multiple repositories.
+- Scoring for optional AI-assisted findings with sanitized fixtures.
 - GitHub App packaging for teams that want central configuration.
 - Deeper project-specific rule extraction from `CONTRIBUTING.md` and templates into deterministic checks.
 - Better duplicate detection using embeddings when AI is enabled.

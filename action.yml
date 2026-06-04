@@ -31,6 +31,9 @@ inputs:
   report-json-path:
     description: Optional workspace-relative path where a structured JSON report should be written for downstream steps.
     required: false
+  effective-config-json-path:
+    description: Optional workspace-relative path where the redacted effective configuration should be written for debugging and rollout review.
+    required: false
 outputs:
   outcome:
     description: Review-readiness outcome such as ready, needs_info, needs_tests, needs_maintainer_review, blocked, or skipped.
@@ -48,6 +51,8 @@ outputs:
     description: Reason the subject was skipped, when applicable.
   report-json-path:
     description: Path to the structured JSON report when report-json-path is configured.
+  effective-config-json-path:
+    description: Path to the redacted effective configuration report when effective-config-json-path is configured.
   config-warnings-count:
     description: Number of configuration diagnostics emitted while loading and validating Maintainer Firewall config.
   config-warnings:

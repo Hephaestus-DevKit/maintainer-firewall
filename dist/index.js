@@ -40322,7 +40322,7 @@ function exportVariable(name, val) {
  * ```
  */
 function core_setSecret(secret) {
-    issueCommand('add-mask', {}, secret);
+    command_issueCommand('add-mask', {}, secret);
 }
 /**
  * Prepends inputPath to the PATH (for this action and future actions)
@@ -44878,6 +44878,303 @@ function getOctokit(token, options, ...additionalPlugins) {
     return new GitHubWithPlugins(getOctokitOptions(token, options));
 }
 //# sourceMappingURL=github.js.map
+;// CONCATENATED MODULE: ./src/regex.ts
+const REGEX_CACHE_LIMIT = 256;
+const regexCache = new Map();
+function compileConfigRegex(pattern, flags = "i") {
+    const key = `${flags}:${pattern}`;
+    if (regexCache.has(key)) {
+        return regexCache.get(key) ?? null;
+    }
+    const compiled = compileConfigRegexUncached(pattern, flags);
+    if (regexCache.size >= REGEX_CACHE_LIMIT) {
+        regexCache.clear();
+    }
+    regexCache.set(key, compiled);
+    return compiled;
+}
+function matchesAnyConfiguredRegex(value, patterns) {
+    return patterns.some((pattern) => compileConfigRegex(pattern, "i")?.test(value) ?? false);
+}
+function replaceByConfiguredRegexes(value, patterns, replacement) {
+    return patterns.reduce((output, pattern) => {
+        const regex = compileConfigRegex(pattern, "gi");
+        return regex ? output.replace(regex, replacement) : output;
+    }, value);
+}
+function configuredRegexWarnings(path, patterns) {
+    return patterns
+        .flatMap((pattern, index) => {
+        try {
+            new RegExp(pattern);
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return [`${path}[${index}] contains an invalid regular expression: ${message}`];
+        }
+        if (isPotentiallyUnsafeRegex(pattern)) {
+            return [`${path}[${index}] contains a potentially unsafe regular expression and will be ignored.`];
+        }
+        return [];
+    });
+}
+function compileConfigRegexUncached(pattern, flags) {
+    if (isPotentiallyUnsafeRegex(pattern)) {
+        return null;
+    }
+    try {
+        return new RegExp(pattern, flags);
+    }
+    catch {
+        return null;
+    }
+}
+function isPotentiallyUnsafeRegex(pattern) {
+    const source = pattern.replace(/\\./g, "");
+    return hasBackreference(pattern) ||
+        hasNestedQuantifiedGroup(source) ||
+        hasQuantifiedAmbiguousAlternation(source) ||
+        hasRepeatedWildcard(source);
+}
+function hasBackreference(pattern) {
+    return /\\[1-9]/.test(pattern);
+}
+function hasNestedQuantifiedGroup(source) {
+    return /\([^)]*(?:[+*]|\{\d+(?:,\d*)?})[^)]*\)\s*(?:[+*]|\{\d+(?:,\d*)?})/.test(source);
+}
+function hasQuantifiedAmbiguousAlternation(source) {
+    return /\([^)]*\|[^)]*\)\s*(?:[+*]|\{\d+(?:,\d*)?})/.test(source);
+}
+function hasRepeatedWildcard(source) {
+    return /(?:\.\*){2,}/.test(source);
+}
+
+;// CONCATENATED MODULE: ./src/redaction.ts
+
+function redactByPatterns(value, patterns, replacement = "[redacted]") {
+    return replaceByConfiguredRegexes(value, patterns, replacement);
+}
+function redactFinding(finding, patterns) {
+    return {
+        ...finding,
+        id: redactByPatterns(finding.id, patterns),
+        title: redactByPatterns(finding.title, patterns),
+        details: redactByPatterns(finding.details, patterns),
+        suggestion: finding.suggestion ? redactByPatterns(finding.suggestion, patterns) : undefined,
+        references: finding.references?.map((reference) => ({
+            ...reference,
+            path: redactByPatterns(reference.path, patterns),
+            label: reference.label ? redactByPatterns(reference.label, patterns) : undefined,
+            url: reference.url ? redactByPatterns(reference.url, patterns) : undefined
+        }))
+    };
+}
+function redactReviewSummary(summary, patterns) {
+    return {
+        ...summary,
+        headline: redactByPatterns(summary.headline, patterns),
+        nextSteps: summary.nextSteps.map((step) => redactByPatterns(step, patterns)),
+        passedChecks: summary.passedChecks.map((check) => redactByPatterns(check, patterns)),
+        labels: summary.labels.map((label) => redactByPatterns(label, patterns)),
+        routingHints: summary.routingHints.map((hint) => ({
+            ...hint,
+            owner: redactByPatterns(hint.owner, patterns),
+            files: hint.files.map((file) => redactByPatterns(file, patterns))
+        }))
+    };
+}
+
+;// CONCATENATED MODULE: ./src/finding-ids.ts
+const PROTECTED_FINDING_IDS = ["content.secret.possible"];
+const PROTECTED_FINDING_ID_SET = new Set(PROTECTED_FINDING_IDS);
+function isProtectedFindingId(id) {
+    return PROTECTED_FINDING_ID_SET.has(id);
+}
+
+;// CONCATENATED MODULE: ./src/setup-summary.ts
+
+function composeSetupSummary(options) {
+    const runtimeWarnings = options.runtimeWarnings ?? [];
+    const rows = [
+        ["Subject", options.subjectKind ? subjectLabel(options.subjectKind) : "No handled issue or pull request"],
+        ["Config", options.configPath],
+        ["Run mode", options.dryRun ? "Dry run; no labels, comments, or stale-label removals are written" : "Live writes allowed"],
+        ["Comments", commentState(options.config)],
+        ["Labels", labelState(options.config, options.dryRun)],
+        ["Annotations", options.emitAnnotations ? "Enabled" : "Disabled"],
+        ["JSON report", options.reportJsonPath || "Disabled"],
+        ["Effective config", options.effectiveConfigJsonPath || "Disabled"],
+        ["Rule policy", rulePolicyState(options.config)],
+        ["Configuration warnings", options.configWarnings.length === 0 ? "None" : String(options.configWarnings.length)],
+        ["Runtime warnings", runtimeWarnings.length === 0 ? "None" : String(runtimeWarnings.length)],
+        ["AI analysis", aiState(options.config, options.openAiApiKeyProvided)],
+        ["Failure policy", options.failOnFindings ? "Fail on warning or error findings" : "Advisory; workflow does not fail on findings"]
+    ];
+    const lines = [
+        "## Maintainer Firewall setup",
+        "",
+        "| Setting | Active state |",
+        "| --- | --- |",
+        ...rows.map(([setting, state]) => `| ${escapeTable(setting)} | ${escapeTable(state)} |`)
+    ];
+    if (options.configWarnings.length > 0) {
+        lines.push("");
+        lines.push("### Configuration warnings");
+        for (const warning of options.configWarnings.slice(0, 10)) {
+            lines.push(`- ${warning}`);
+        }
+        if (options.configWarnings.length > 10) {
+            lines.push(`- ${options.configWarnings.length - 10} additional warning${options.configWarnings.length === 11 ? "" : "s"} hidden.`);
+        }
+    }
+    if (runtimeWarnings.length > 0) {
+        lines.push("");
+        lines.push("### Runtime warnings");
+        for (const warning of runtimeWarnings.slice(0, 10)) {
+            lines.push(`- ${warning}`);
+        }
+        if (runtimeWarnings.length > 10) {
+            lines.push(`- ${runtimeWarnings.length - 10} additional warning${runtimeWarnings.length === 11 ? "" : "s"} hidden.`);
+        }
+    }
+    return lines.join("\n");
+}
+function composeStepSummary(setupSummary, report) {
+    return `${setupSummary}\n\n${report}`;
+}
+function subjectLabel(kind) {
+    return kind === "issue" ? "Issue" : "Pull request";
+}
+function commentState(config) {
+    if (!config.comment.enabled || config.comment.postWhen === "never") {
+        return "Disabled";
+    }
+    return `Enabled; postWhen=${config.comment.postWhen}; updateExisting=${String(config.comment.updateExisting)}`;
+}
+function labelState(config, dryRun) {
+    if (!config.labeling.enabled) {
+        return "Disabled";
+    }
+    const state = `Enabled; createMissing=${String(config.labeling.createMissing)}; removeStale=${String(config.labeling.removeStale)}`;
+    return dryRun ? `${state}; writes suppressed by dry-run` : state;
+}
+function aiState(config, openAiApiKeyProvided) {
+    if (!config.ai.enabled) {
+        return "Disabled";
+    }
+    return openAiApiKeyProvided
+        ? `Enabled; model=${config.ai.model}; timeoutMs=${config.ai.timeoutMs}`
+        : "Configured, but no API key was provided";
+}
+function rulePolicyState(config) {
+    const disabledCount = config.rules.disabled.filter((id) => !isProtectedFindingId(id)).length;
+    const overrideCount = Object.entries(config.rules.severityOverrides).reduce((sum, [severity, ids]) => sum + ids.filter((id) => !isProtectedFindingId(id) || severity === "error").length, 0);
+    if (disabledCount === 0 && overrideCount === 0) {
+        return "Default";
+    }
+    return `${disabledCount} disabled; ${overrideCount} severity override${overrideCount === 1 ? "" : "s"}`;
+}
+function escapeTable(value) {
+    return value.replace(/\|/g, "\\|").replace(/\n/g, " ");
+}
+
+;// CONCATENATED MODULE: ./src/action-runtime.ts
+
+
+
+function dedupeFindings(findings) {
+    const seen = new Set();
+    const output = [];
+    for (const finding of findings) {
+        const key = `${finding.id}:${finding.title}`;
+        if (seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+        output.push(finding);
+    }
+    return output;
+}
+function parseBoolean(value) {
+    return ["1", "true", "yes", "on"].includes((value ?? "").trim().toLowerCase());
+}
+function skippedOutputValues(skipReason, reportJsonPath, effectiveConfigJsonPath, diagnostics, config) {
+    return {
+        skipped: "true",
+        "skip-reason": redactByPatterns(skipReason, config.security.secretPatterns),
+        outcome: "skipped",
+        score: "",
+        "findings-count": "0",
+        labels: "",
+        "routing-hints": "[]",
+        "report-json-path": reportJsonPath ?? "",
+        "effective-config-json-path": effectiveConfigJsonPath ?? "",
+        ...diagnosticOutputValues(diagnostics)
+    };
+}
+function completedOutputValues(summary, findings, reportJsonPath, effectiveConfigJsonPath, diagnostics, config) {
+    const safeSummary = redactReviewSummary(summary, config.security.secretPatterns);
+    return {
+        skipped: "false",
+        "skip-reason": "",
+        outcome: safeSummary.outcome,
+        score: String(safeSummary.score),
+        "findings-count": String(findings.length),
+        labels: safeSummary.labels.join(","),
+        "routing-hints": JSON.stringify(safeSummary.routingHints),
+        "report-json-path": reportJsonPath ?? "",
+        "effective-config-json-path": effectiveConfigJsonPath ?? "",
+        ...diagnosticOutputValues(diagnostics)
+    };
+}
+function setActionOutputs(outputs) {
+    for (const [name, value] of Object.entries(outputs)) {
+        setOutput(name, value);
+    }
+}
+function setSkippedOutputs(skipReason, reportJsonPath, effectiveConfigJsonPath, diagnostics, config) {
+    setActionOutputs(skippedOutputValues(skipReason, reportJsonPath, effectiveConfigJsonPath, diagnostics, config));
+}
+function setCompletedOutputs(summary, findings, reportJsonPath, effectiveConfigJsonPath, diagnostics, config) {
+    setActionOutputs(completedOutputValues(summary, findings, reportJsonPath, effectiveConfigJsonPath, diagnostics, config));
+}
+function composeRunStepSummary(config, configPath, diagnostics, options, report) {
+    return composeStepSummary(composeSetupSummary({
+        config,
+        configPath,
+        configWarnings: diagnostics.configWarnings,
+        runtimeWarnings: diagnostics.runtimeWarnings,
+        dryRun: options.dryRun,
+        emitAnnotations: options.emitAnnotations,
+        failOnFindings: options.failOnFindings,
+        openAiApiKeyProvided: options.openAiApiKeyProvided,
+        reportJsonPath: options.reportJsonPath,
+        effectiveConfigJsonPath: options.effectiveConfigJsonPath,
+        subjectKind: options.subjectKind
+    }), report);
+}
+async function writeSummary(operation, summary, warningSink) {
+    await tryWrite(operation, async () => {
+        await summary_summary.addRaw(summary, true).write();
+    }, warningSink);
+}
+async function tryWrite(operation, write, warningSink = (message) => core_warning(message)) {
+    try {
+        await write();
+    }
+    catch (error) {
+        warningSink(`Could not ${operation}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+}
+function diagnosticOutputValues(diagnostics) {
+    return {
+        "config-warnings-count": String(diagnostics.configWarnings.length),
+        "config-warnings": JSON.stringify(diagnostics.configWarnings),
+        "runtime-warnings-count": String(diagnostics.runtimeWarnings.length),
+        "runtime-warnings": JSON.stringify(diagnostics.runtimeWarnings)
+    };
+}
+
 ;// CONCATENATED MODULE: ./src/text.ts
 const STOP_WORDS = new Set([
     "a",
@@ -44920,7 +45217,7 @@ function tokenize(value) {
 function jaccardSimilarity(left, right) {
     const leftTokens = new Set(tokenize(left));
     const rightTokens = new Set(tokenize(right));
-    if (leftTokens.size === 0 || rightTokens.size === 0) {
+    if (leftTokens.size < 2 || rightTokens.size < 2) {
         return 0;
     }
     let intersection = 0;
@@ -45031,40 +45328,6 @@ function getErrorStatus(error) {
 }
 function getErrorMessage(error) {
     return error instanceof Error ? error.message : String(error);
-}
-
-;// CONCATENATED MODULE: ./src/redaction.ts
-function redactByPatterns(value, patterns, replacement = "[redacted]") {
-    return patterns.reduce((output, pattern) => {
-        try {
-            return output.replace(new RegExp(pattern, "gi"), replacement);
-        }
-        catch {
-            return output;
-        }
-    }, value);
-}
-function redactFinding(finding, patterns) {
-    return {
-        ...finding,
-        id: redactByPatterns(finding.id, patterns),
-        title: redactByPatterns(finding.title, patterns),
-        details: redactByPatterns(finding.details, patterns),
-        suggestion: finding.suggestion ? redactByPatterns(finding.suggestion, patterns) : undefined
-    };
-}
-function redactReviewSummary(summary, patterns) {
-    return {
-        ...summary,
-        headline: redactByPatterns(summary.headline, patterns),
-        nextSteps: summary.nextSteps.map((step) => redactByPatterns(step, patterns)),
-        passedChecks: summary.passedChecks.map((check) => redactByPatterns(check, patterns)),
-        routingHints: summary.routingHints.map((hint) => ({
-            ...hint,
-            owner: redactByPatterns(hint.owner, patterns),
-            files: hint.files.map((file) => redactByPatterns(file, patterns))
-        }))
-    };
 }
 
 ;// CONCATENATED MODULE: ./src/ai.ts
@@ -45261,7 +45524,7 @@ function normalizeAiFinding(value, index) {
         return null;
     }
     return {
-        id: normalizeAiText(record.id ?? `ai.finding.${index + 1}`, AI_ID_MAX_CHARACTERS),
+        id: normalizeAiId(record.id, index),
         severity: severity,
         title,
         details,
@@ -45269,6 +45532,22 @@ function normalizeAiFinding(value, index) {
         label,
         source: "ai"
     };
+}
+function normalizeAiId(value, index) {
+    const fallback = `ai.finding.${index + 1}`;
+    if (typeof value !== "string") {
+        return fallback;
+    }
+    const compacted = normalizeAiText(value, AI_ID_MAX_CHARACTERS)
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]+/g, ".")
+        .replace(/\.+/g, ".")
+        .replace(/^[._-]+|[._-]+$/g, "");
+    const withPrefix = compacted
+        ? compacted.startsWith("ai.") ? compacted : `ai.${compacted}`
+        : fallback;
+    const truncated = withPrefix.slice(0, AI_ID_MAX_CHARACTERS);
+    return truncated.replace(/[._-]+$/g, "") || fallback;
 }
 function normalizeAiText(value, maxCharacters) {
     const compacted = String(value ?? "").replace(/\s+/g, " ").trim();
@@ -47917,6 +48196,11 @@ const OUTCOME_LABELS = {
     needs_maintainer_review: "Needs maintainer review",
     blocked: "Blocked"
 };
+const SCORE_PENALTY_BY_SEVERITY = {
+    error: 35,
+    warning: 18,
+    notice: 7
+};
 function createReviewSummary(subject, findings, config, routingHints = []) {
     const score = scoreFindings(findings);
     const outcome = chooseOutcome(findings);
@@ -47935,13 +48219,7 @@ function outcomeLabel(outcome) {
 }
 function scoreFindings(findings) {
     const penalty = findings.reduce((sum, finding) => {
-        if (finding.severity === "error") {
-            return sum + 35;
-        }
-        if (finding.severity === "warning") {
-            return sum + 18;
-        }
-        return sum + 7;
+        return sum + SCORE_PENALTY_BY_SEVERITY[finding.severity];
     }, 0);
     return Math.max(0, 100 - penalty);
 }
@@ -48069,24 +48347,40 @@ function passedChecksForSubject(subject, findings, config) {
     const ids = new Set(findings.map((finding) => finding.id));
     if (subject.kind === "issue") {
         return [
-            !ids.has("issue.body.too_short") ? "Issue body has enough detail" : undefined,
+            config.issue.minBodyCharacters > 0 && !ids.has("issue.body.too_short")
+                ? "Issue body has enough detail"
+                : undefined,
             config.issue.requiredSections.length > 0 && !ids.has("issue.required_sections.missing")
                 ? "Required issue sections are present"
                 : undefined,
-            !ids.has("issue.reproduction.missing") ? "Reproduction signal found" : undefined,
-            !ids.has("issue.environment.missing") ? "Environment signal found" : undefined,
-            !ids.has("issue.duplicate.possible") ? "No likely duplicate found" : undefined
+            config.issue.requireReproduction && !ids.has("issue.reproduction.missing")
+                ? "Reproduction signal found"
+                : undefined,
+            config.issue.requireEnvironment && !ids.has("issue.environment.missing")
+                ? "Environment signal found"
+                : undefined,
+            config.issue.duplicateSearchLimit > 0 && !ids.has("issue.duplicate.possible")
+                ? "No likely duplicate found"
+                : undefined
         ].filter((value) => Boolean(value));
     }
     return [
-        !ids.has("pr.body.too_short") ? "PR description has enough detail" : undefined,
+        config.pullRequest.minBodyCharacters > 0 && !ids.has("pr.body.too_short")
+            ? "PR description has enough detail"
+            : undefined,
         config.pullRequest.requiredSections.length > 0 && !ids.has("pr.required_sections.missing")
             ? "Required PR sections are present"
             : undefined,
-        !ids.has("pr.linked_issue.missing") ? "Issue link or reference found" : undefined,
-        !ids.has("pr.tests.missing") ? "Test signal found or no code change detected" : undefined,
+        config.pullRequest.requireLinkedIssue && !ids.has("pr.linked_issue.missing")
+            ? "Issue link or reference found"
+            : undefined,
+        config.pullRequest.requireTestsForCodeChanges && !ids.has("pr.tests.missing")
+            ? "Test signal found or no code change detected"
+            : undefined,
         !ids.has("pr.scope.large") ? "Change size is within threshold" : undefined,
-        !ids.has("pr.sensitive_paths.changed") ? "No configured sensitive paths changed" : undefined
+        config.pullRequest.sensitivePaths.length > 0 && !ids.has("pr.sensitive_paths.changed")
+            ? "No configured sensitive paths changed"
+            : undefined
     ].filter((value) => Boolean(value));
 }
 
@@ -48132,7 +48426,7 @@ function composeReport(subject, findings, config, summary) {
     lines.push("| Severity | Source / ID | Finding | Suggested next step |");
     lines.push("| --- | --- | --- | --- |");
     for (const finding of visibleFindings) {
-        lines.push(`| ${finding.severity} | ${finding.source}<br>\`${escapeInlineCode(escapeTable(finding.id))}\` | ${escapeTable(`${finding.title}: ${finding.details}`)} | ${escapeTable(finding.suggestion ?? "Review manually.")} |`);
+        lines.push(`| ${finding.severity} | ${finding.source}<br>\`${escapeInlineCode(comment_escapeTable(finding.id))}\` | ${comment_escapeTable(`${finding.title}: ${finding.details}`)} | ${comment_escapeTable(finding.suggestion ?? "Review manually.")} |`);
     }
     if (hiddenFindingCount > 0) {
         lines.push(`| notice | system | ${hiddenFindingCount} additional finding${hiddenFindingCount === 1 ? "" : "s"} hidden by comment.maxFindings. | Increase comment.maxFindings to show more. |`);
@@ -48151,13 +48445,14 @@ function composeReport(subject, findings, config, summary) {
     return lines.join("\n");
 }
 function composeSkippedReport(subject, skipReason, config) {
+    const safeSkipReason = escapeMarkdownLine(redactByPatterns(skipReason, config.security.secretPatterns));
     const lines = [
         MARKER,
         `## ${config.comment.header}`,
         "",
         subject
-            ? `Skipped ${subject.kind === "issue" ? "issue" : "pull request"} #${subject.number}: ${skipReason}.`
-            : `Skipped: ${skipReason}.`,
+            ? `Skipped ${subject.kind === "issue" ? "issue" : "pull request"} #${subject.number}: ${safeSkipReason}.`
+            : `Skipped: ${safeSkipReason}.`,
         "",
         "_Maintainer Firewall skipped this subject because an ignore rule matched._"
     ];
@@ -48190,11 +48485,14 @@ function shouldPostSkippedComment(config, hasExistingReport) {
     }
     return config.comment.updateExisting && hasExistingReport;
 }
-function escapeTable(value) {
+function comment_escapeTable(value) {
     return value.replace(/\|/g, "\\|").replace(/\n/g, "<br>");
 }
 function escapeInlineCode(value) {
     return value.replace(/`/g, "'");
+}
+function escapeMarkdownLine(value) {
+    return value.replace(/\n/g, " ").replace(/\|/g, "\\|");
 }
 function appendPassedChecks(lines, config, summary) {
     if (!config.comment.includePassingChecks || summary.passedChecks.length === 0) {
@@ -48575,23 +48873,17 @@ function isKnownPostWhen(value) {
     return value === "always" || value === "findings" || value === "never";
 }
 
-;// CONCATENATED MODULE: ./src/finding-ids.ts
-const PROTECTED_FINDING_IDS = ["content.secret.possible"];
-const PROTECTED_FINDING_ID_SET = new Set(PROTECTED_FINDING_IDS);
-function isProtectedFindingId(id) {
-    return PROTECTED_FINDING_ID_SET.has(id);
-}
-
 ;// CONCATENATED MODULE: ./src/diagnostics.ts
+
 
 function validateConfig(config) {
     const warnings = [];
     if (config.version !== 1) {
         warnings.push(`Unsupported config version ${config.version}; version 1 is the only supported version.`);
     }
-    warnings.push(...invalidRegexWarnings("security.reportPatterns", config.security.reportPatterns));
-    warnings.push(...invalidRegexWarnings("security.secretPatterns", config.security.secretPatterns));
-    warnings.push(...invalidRegexWarnings("ignore.titlePatterns", config.ignore.titlePatterns));
+    warnings.push(...configuredRegexWarnings("security.reportPatterns", config.security.reportPatterns));
+    warnings.push(...configuredRegexWarnings("security.secretPatterns", config.security.secretPatterns));
+    warnings.push(...configuredRegexWarnings("ignore.titlePatterns", config.ignore.titlePatterns));
     const labelValues = Object.values(config.labels).filter(Boolean);
     const duplicateLabels = labelValues.filter((label, index) => labelValues.indexOf(label) !== index);
     for (const label of [...new Set(duplicateLabels)]) {
@@ -48605,20 +48897,6 @@ function validateConfig(config) {
     }
     warnings.push(...rulePolicyWarnings(config));
     return warnings;
-}
-function invalidRegexWarnings(path, patterns) {
-    return patterns
-        .map((pattern, index) => {
-        try {
-            new RegExp(pattern);
-            return null;
-        }
-        catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            return `${path}[${index}] contains an invalid regular expression: ${message}`;
-        }
-    })
-        .filter((warning) => Boolean(warning));
 }
 function rulePolicyWarnings(config) {
     const warnings = [];
@@ -48650,6 +48928,121 @@ function rulePolicyWarnings(config) {
     return warnings;
 }
 
+;// CONCATENATED MODULE: external "node:fs/promises"
+const promises_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:fs/promises");
+;// CONCATENATED MODULE: external "node:path"
+const external_node_path_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:path");
+;// CONCATENATED MODULE: ./src/effective-config.ts
+
+
+
+function createEffectiveConfigPayload(config, configPath, options, diagnostics) {
+    const secretPatterns = config.security.secretPatterns;
+    return {
+        version: 1,
+        configPath: redactByPatterns(configPath, secretPatterns),
+        subjectKind: options.subjectKind,
+        surfaces: {
+            dryRun: options.dryRun,
+            comments: commentSurface(config),
+            labels: labelSurface(config, options.dryRun),
+            annotations: options.emitAnnotations,
+            stepSummary: options.writeStepSummary,
+            reportJsonPath: options.reportJsonPath || null,
+            effectiveConfigJsonPath: options.effectiveConfigJsonPath || null,
+            failOnFindings: options.failOnFindings,
+            ai: {
+                enabled: config.ai.enabled,
+                apiKeyProvided: options.openAiApiKeyProvided,
+                model: redactByPatterns(config.ai.model, secretPatterns),
+                timeoutMs: config.ai.timeoutMs,
+                maxInputCharacters: config.ai.maxInputCharacters,
+                maxOutputTokens: config.ai.maxOutputTokens
+            }
+        },
+        enabledChecks: {
+            issue: {
+                enabled: config.issue.enabled,
+                minBodyCharacters: config.issue.minBodyCharacters,
+                requireReproduction: config.issue.requireReproduction,
+                requireEnvironment: config.issue.requireEnvironment,
+                duplicateSearchLimit: config.issue.duplicateSearchLimit,
+                requiredSections: redactStringArray(config.issue.requiredSections, secretPatterns)
+            },
+            pullRequest: {
+                enabled: config.pullRequest.enabled,
+                minBodyCharacters: config.pullRequest.minBodyCharacters,
+                requireLinkedIssue: config.pullRequest.requireLinkedIssue,
+                requireTestsForCodeChanges: config.pullRequest.requireTestsForCodeChanges,
+                largeChangeThreshold: config.pullRequest.largeChangeThreshold,
+                requiredSections: redactStringArray(config.pullRequest.requiredSections, secretPatterns),
+                sensitivePathPatterns: config.pullRequest.sensitivePaths.length,
+                testPathPatterns: config.pullRequest.testPathPatterns.length
+            },
+            security: {
+                enabled: config.security.enabled,
+                reportPatterns: config.security.reportPatterns.length,
+                secretPatterns: config.security.secretPatterns.length
+            }
+        },
+        labels: redactRecord(config.labels, secretPatterns),
+        rules: {
+            disabled: redactStringArray(config.rules.disabled, secretPatterns),
+            severityOverrides: {
+                notice: redactStringArray(config.rules.severityOverrides.notice, secretPatterns),
+                warning: redactStringArray(config.rules.severityOverrides.warning, secretPatterns),
+                error: redactStringArray(config.rules.severityOverrides.error, secretPatterns)
+            }
+        },
+        ignore: {
+            authors: redactStringArray(config.ignore.authors, secretPatterns),
+            labels: redactStringArray(config.ignore.labels, secretPatterns),
+            titlePatterns: redactStringArray(config.ignore.titlePatterns, secretPatterns)
+        },
+        repository: {
+            guidancePaths: redactStringArray(config.repository.guidancePaths, secretPatterns),
+            codeOwnersPaths: redactStringArray(config.repository.codeOwnersPaths, secretPatterns),
+            maxGuidanceCharacters: config.repository.maxGuidanceCharacters
+        },
+        diagnostics: diagnosticsPayload(diagnostics, secretPatterns)
+    };
+}
+async function writeEffectiveConfigJson(path, payload) {
+    await (0,promises_namespaceObject.mkdir)((0,external_node_path_namespaceObject.dirname)(path), { recursive: true });
+    await (0,promises_namespaceObject.writeFile)(path, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+}
+function commentSurface(config) {
+    if (!config.comment.enabled || config.comment.postWhen === "never") {
+        return "disabled";
+    }
+    return `enabled:${config.comment.postWhen}:updateExisting=${String(config.comment.updateExisting)}`;
+}
+function labelSurface(config, dryRun) {
+    if (!config.labeling.enabled) {
+        return "disabled";
+    }
+    return dryRun
+        ? "enabled:dry-run"
+        : `enabled:createMissing=${String(config.labeling.createMissing)}:removeStale=${String(config.labeling.removeStale)}`;
+}
+function diagnosticsPayload(diagnostics, secretPatterns) {
+    const configWarnings = redactStringArray(diagnostics.configWarnings, secretPatterns);
+    const runtimeWarnings = redactStringArray(diagnostics.runtimeWarnings, secretPatterns);
+    if (configWarnings.length === 0 && runtimeWarnings.length === 0) {
+        return undefined;
+    }
+    return {
+        ...(configWarnings.length > 0 ? { configWarnings } : {}),
+        ...(runtimeWarnings.length > 0 ? { runtimeWarnings } : {})
+    };
+}
+function redactStringArray(values, secretPatterns) {
+    return values.map((value) => redactByPatterns(value, secretPatterns));
+}
+function redactRecord(record, secretPatterns) {
+    return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, redactByPatterns(value, secretPatterns)]));
+}
+
 ;// CONCATENATED MODULE: ./src/finding-policy.ts
 
 const SEVERITY_OVERRIDE_PRECEDENCE = ["error", "warning", "notice"];
@@ -48675,6 +49068,7 @@ function severityForFinding(finding, config) {
 }
 
 ;// CONCATENATED MODULE: ./src/ignore.ts
+
 function getSkipReason(subject, config) {
     if (matchesCaseInsensitive(config.ignore.authors, subject.author)) {
         return `author ${subject.author} is ignored`;
@@ -48684,12 +49078,7 @@ function getSkipReason(subject, config) {
         return `label ${ignoredLabel} is ignored`;
     }
     const titlePattern = config.ignore.titlePatterns.find((pattern) => {
-        try {
-            return new RegExp(pattern, "i").test(subject.title);
-        }
-        catch {
-            return false;
-        }
+        return compileConfigRegex(pattern, "i")?.test(subject.title) ?? false;
     });
     if (titlePattern) {
         return `title matches ignored pattern ${titlePattern}`;
@@ -48701,10 +49090,6 @@ function matchesCaseInsensitive(values, candidate) {
     return values.some((value) => value.toLowerCase() === normalized);
 }
 
-;// CONCATENATED MODULE: external "node:fs/promises"
-const promises_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:fs/promises");
-;// CONCATENATED MODULE: external "node:path"
-const external_node_path_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:path");
 ;// CONCATENATED MODULE: ./src/report.ts
 
 
@@ -48732,7 +49117,7 @@ function sanitizeSubject(subject, config) {
         title: redactByPatterns(subject.title, config.security.secretPatterns),
         author: subject.author,
         url: subject.htmlUrl,
-        labels: subject.labels
+        labels: subject.labels.map((label) => redactByPatterns(label, config.security.secretPatterns))
     };
     if (subject.kind === "issue") {
         return base;
@@ -48740,7 +49125,7 @@ function sanitizeSubject(subject, config) {
     return {
         ...base,
         changedFiles: subject.changedFiles.map((file) => ({
-            filename: file.filename,
+            filename: redactByPatterns(file.filename, config.security.secretPatterns),
             status: file.status,
             additions: file.additions,
             deletions: file.deletions
@@ -48779,18 +49164,19 @@ function createRuntimeWarningSink(diagnostics, config) {
     };
 }
 function setDiagnosticOutputs(diagnostics) {
-    setOutput("config-warnings-count", String(diagnostics.configWarnings.length));
-    setOutput("config-warnings", JSON.stringify(diagnostics.configWarnings));
-    setOutput("runtime-warnings-count", String(diagnostics.runtimeWarnings.length));
-    setOutput("runtime-warnings", JSON.stringify(diagnostics.runtimeWarnings));
+    core.setOutput("config-warnings-count", String(diagnostics.configWarnings.length));
+    core.setOutput("config-warnings", JSON.stringify(diagnostics.configWarnings));
+    core.setOutput("runtime-warnings-count", String(diagnostics.runtimeWarnings.length));
+    core.setOutput("runtime-warnings", JSON.stringify(diagnostics.runtimeWarnings));
 }
 
 ;// CONCATENATED MODULE: ./src/rules.ts
 
 
+
 const REPRODUCTION_PATTERN = /\b(repro|reproduction|steps?|minimal|example|sandbox|codesandbox|stackblitz|repo|repository|command|actual|expected)\b/i;
 const ENVIRONMENT_PATTERN = /\b(version|node|npm|pnpm|yarn|bun|browser|chrome|firefox|safari|edge|os|platform|environment|python|rust|cargo|go version|java)\b/i;
-const LINKED_ISSUE_PATTERN = /\b(close[sd]?|fix(e[sd])?|resolve[sd]?)\s*:?\s*(#\d+|https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/\d+)|(^|\s)#\d+\b/i;
+const LINKED_ISSUE_PATTERN = /\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?|references?|refs?|related)\s*:?\s*(#\d+|https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/\d+)|(^|[^\w#])#\d+\b/i;
 function analyzeSubject(subject, config) {
     if (subject.kind === "issue") {
         return config.issue.enabled ? analyzeIssue(subject, config) : [];
@@ -48877,7 +49263,7 @@ function analyzePullRequest(pr, config) {
         });
     }
     addRequiredSectionFindings(findings, body, "pr", config.pullRequest.requiredSections);
-    if (config.pullRequest.requireLinkedIssue && !LINKED_ISSUE_PATTERN.test(body)) {
+    if (config.pullRequest.requireLinkedIssue && !hasLinkedIssue(body)) {
         findings.push({
             id: "pr.linked_issue.missing",
             severity: "notice",
@@ -48975,24 +49361,62 @@ function addRequiredSectionFindings(findings, body, subjectKind, requiredSection
         details: `Missing section${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}.`,
         suggestion: "Please fill out the missing template sections before review.",
         label: "needsInfo",
+        references: missing.map((section) => ({
+            source: "config",
+            path: subjectKind === "issue" ? "issue.requiredSections" : "pullRequest.requiredSections",
+            label: section
+        })),
         source: "rule"
     });
 }
 function hasSection(body, section) {
+    const searchableBody = stripFencedCodeBlocks(body);
     const escaped = section.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return new RegExp(`(^|\\n)\\s{0,3}#{1,6}\\s*${escaped}\\s*$|(^|\\n)\\s*${escaped}\\s*:`, "im").test(body);
+    return new RegExp(`(^|\\n)\\s{0,3}#{1,6}\\s*${escaped}\\s*$|(^|\\n)\\s*${escaped}\\s*:`, "im").test(searchableBody);
+}
+function hasLinkedIssue(body) {
+    return stripFencedCodeBlocks(body)
+        .split(/\r?\n/)
+        .some((line) => {
+        if (/^\s{0,3}#{1,6}\s*#?\d+\b/.test(line)) {
+            return false;
+        }
+        return LINKED_ISSUE_PATTERN.test(line);
+    });
+}
+function stripFencedCodeBlocks(value) {
+    const output = [];
+    let fenceMarker = null;
+    for (const line of value.split(/\r?\n/)) {
+        const fence = line.match(/^\s{0,3}(`{3,}|~{3,})/);
+        if (fence) {
+            const marker = fence[1]?.startsWith("`") ? "`" : "~";
+            if (!fenceMarker) {
+                fenceMarker = marker;
+                continue;
+            }
+            if (fenceMarker === marker) {
+                fenceMarker = null;
+                continue;
+            }
+        }
+        if (!fenceMarker) {
+            output.push(line);
+        }
+    }
+    return output.join("\n");
 }
 function hasCodeChanges(files) {
     return files.some((file) => {
         if (file.status === "removed") {
             return false;
         }
-        return /\.(c|cc|cpp|cs|go|java|js|jsx|kt|mjs|php|py|rb|rs|swift|ts|tsx)$/i.test(file.filename) &&
+        return /\.(c|cc|cpp|cs|cts|go|java|js|jsx|kt|mjs|mts|php|py|rb|rs|swift|ts|tsx|vue|svelte)$/i.test(file.filename) &&
             !isTestPath(file.filename);
     });
 }
 function hasTestChanges(files, testPathPatterns) {
-    return files.some((file) => isTestPath(file.filename) || matchesAny(file.filename, testPathPatterns));
+    return files.some((file) => file.status !== "removed" && (isTestPath(file.filename) || matchesAny(file.filename, testPathPatterns)));
 }
 function isTestPath(filename) {
     return /(^|\/)(__tests__|tests?|spec)(\/|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(filename);
@@ -49001,100 +49425,7 @@ function matchesAny(filename, patterns) {
     return patterns.some((pattern) => minimatch(filename, pattern, { dot: true }));
 }
 function matchesAnyRegex(value, patterns) {
-    return patterns.some((pattern) => {
-        try {
-            return new RegExp(pattern, "i").test(value);
-        }
-        catch {
-            return false;
-        }
-    });
-}
-
-;// CONCATENATED MODULE: ./src/setup-summary.ts
-
-function composeSetupSummary(options) {
-    const runtimeWarnings = options.runtimeWarnings ?? [];
-    const rows = [
-        ["Subject", options.subjectKind ? subjectLabel(options.subjectKind) : "No handled issue or pull request"],
-        ["Config", options.configPath],
-        ["Run mode", options.dryRun ? "Dry run; no labels, comments, or stale-label removals are written" : "Live writes allowed"],
-        ["Comments", commentState(options.config)],
-        ["Labels", labelState(options.config, options.dryRun)],
-        ["Annotations", options.emitAnnotations ? "Enabled" : "Disabled"],
-        ["JSON report", options.reportJsonPath || "Disabled"],
-        ["Rule policy", rulePolicyState(options.config)],
-        ["Configuration warnings", options.configWarnings.length === 0 ? "None" : String(options.configWarnings.length)],
-        ["Runtime warnings", runtimeWarnings.length === 0 ? "None" : String(runtimeWarnings.length)],
-        ["AI analysis", aiState(options.config, options.openAiApiKeyProvided)],
-        ["Failure policy", options.failOnFindings ? "Fail on warning or error findings" : "Advisory; workflow does not fail on findings"]
-    ];
-    const lines = [
-        "## Maintainer Firewall setup",
-        "",
-        "| Setting | Active state |",
-        "| --- | --- |",
-        ...rows.map(([setting, state]) => `| ${setup_summary_escapeTable(setting)} | ${setup_summary_escapeTable(state)} |`)
-    ];
-    if (options.configWarnings.length > 0) {
-        lines.push("");
-        lines.push("### Configuration warnings");
-        for (const warning of options.configWarnings.slice(0, 10)) {
-            lines.push(`- ${warning}`);
-        }
-        if (options.configWarnings.length > 10) {
-            lines.push(`- ${options.configWarnings.length - 10} additional warning${options.configWarnings.length === 11 ? "" : "s"} hidden.`);
-        }
-    }
-    if (runtimeWarnings.length > 0) {
-        lines.push("");
-        lines.push("### Runtime warnings");
-        for (const warning of runtimeWarnings.slice(0, 10)) {
-            lines.push(`- ${warning}`);
-        }
-        if (runtimeWarnings.length > 10) {
-            lines.push(`- ${runtimeWarnings.length - 10} additional warning${runtimeWarnings.length === 11 ? "" : "s"} hidden.`);
-        }
-    }
-    return lines.join("\n");
-}
-function composeStepSummary(setupSummary, report) {
-    return `${setupSummary}\n\n${report}`;
-}
-function subjectLabel(kind) {
-    return kind === "issue" ? "Issue" : "Pull request";
-}
-function commentState(config) {
-    if (!config.comment.enabled || config.comment.postWhen === "never") {
-        return "Disabled";
-    }
-    return `Enabled; postWhen=${config.comment.postWhen}; updateExisting=${String(config.comment.updateExisting)}`;
-}
-function labelState(config, dryRun) {
-    if (!config.labeling.enabled) {
-        return "Disabled";
-    }
-    const state = `Enabled; createMissing=${String(config.labeling.createMissing)}; removeStale=${String(config.labeling.removeStale)}`;
-    return dryRun ? `${state}; writes suppressed by dry-run` : state;
-}
-function aiState(config, openAiApiKeyProvided) {
-    if (!config.ai.enabled) {
-        return "Disabled";
-    }
-    return openAiApiKeyProvided
-        ? `Enabled; model=${config.ai.model}; timeoutMs=${config.ai.timeoutMs}`
-        : "Configured, but no API key was provided";
-}
-function rulePolicyState(config) {
-    const disabledCount = config.rules.disabled.filter((id) => !isProtectedFindingId(id)).length;
-    const overrideCount = Object.entries(config.rules.severityOverrides).reduce((sum, [severity, ids]) => sum + ids.filter((id) => !isProtectedFindingId(id) || severity === "error").length, 0);
-    if (disabledCount === 0 && overrideCount === 0) {
-        return "Default";
-    }
-    return `${disabledCount} disabled; ${overrideCount} severity override${overrideCount === 1 ? "" : "s"}`;
-}
-function setup_summary_escapeTable(value) {
-    return value.replace(/\|/g, "\\|").replace(/\n/g, " ");
+    return matchesAnyConfiguredRegex(value, patterns);
 }
 
 ;// CONCATENATED MODULE: ./src/github-client.ts
@@ -49168,7 +49499,9 @@ function getConfigRef(context) {
     if (isPullRequestPayload(payload)) {
         return payload.pull_request.base?.sha;
     }
-    return context.ref?.replace("refs/heads/", "");
+    return context.ref
+        ?.replace("refs/heads/", "")
+        .replace("refs/tags/", "");
 }
 async function applyLabels(octokit, owner, repo, issueNumber, labels, createMissing) {
     const uniqueLabels = [...new Set(labels)].filter(Boolean);
@@ -49241,22 +49574,33 @@ async function hasReportComment(octokit, owner, repo, issueNumber, warningSink =
     }
 }
 async function findReportComment(octokit, owner, repo, issueNumber) {
-    const comments = await octokit.paginate(octokit.rest.issues.listComments, {
-        owner,
-        repo,
-        issue_number: issueNumber,
-        per_page: 100
-    });
-    return comments.find((comment) => comment.body?.includes(REPORT_MARKER));
+    for (let page = 1;; page += 1) {
+        const response = await octokit.rest.issues.listComments({
+            owner,
+            repo,
+            issue_number: issueNumber,
+            per_page: 100,
+            page
+        });
+        const comments = response.data;
+        const reportComment = comments.find((comment) => comment.body?.includes(REPORT_MARKER));
+        if (reportComment) {
+            return reportComment;
+        }
+        if (comments.length < 100) {
+            return undefined;
+        }
+    }
 }
 async function findDuplicateIssues(octokit, owner, repo, currentNumber, title, limit, warningSink) {
     if (limit <= 0) {
         return [];
     }
-    const terms = tokenize(title).slice(0, 6).join(" ");
-    if (!terms) {
+    const tokens = tokenize(title).slice(0, 6);
+    if (tokens.length < 2) {
         return [];
     }
+    const terms = tokens.join(" ");
     try {
         const response = await octokit.rest.search.issuesAndPullRequests({
             q: `repo:${owner}/${repo} is:issue in:title ${terms}`,
@@ -49375,15 +49719,21 @@ function github_client_getErrorMessage(error) {
 
 
 
+
 async function run() {
     const token = getInput("github-token", { required: true });
     const openAiApiKey = getInput("openai-api-key") || process.env.OPENAI_API_KEY;
+    core_setSecret(token);
+    if (openAiApiKey) {
+        core_setSecret(openAiApiKey);
+    }
     const configPath = getInput("config-path") || ".maintainer-firewall.yml";
     const dryRun = parseBoolean(getInput("dry-run"));
     const failOnFindings = parseBoolean(getInput("fail-on-findings"));
     const emitAnnotations = parseBoolean(getInput("emit-annotations"));
     const writeStepSummary = parseBoolean(getInput("write-step-summary") || "true");
     const reportJsonPath = getInput("report-json-path");
+    const effectiveConfigJsonPath = getInput("effective-config-json-path");
     const octokit = getOctokit(token);
     const { owner, repo } = github_context.repo;
     const configRef = getConfigRef(github_context);
@@ -49397,9 +49747,20 @@ async function run() {
         core_warning(warning);
     }
     const subject = await buildSubject(octokit, github_context, config.issue.duplicateSearchLimit, warn);
+    if (effectiveConfigJsonPath) {
+        await tryWrite("write effective config JSON", () => writeEffectiveConfigJson(effectiveConfigJsonPath, createEffectiveConfigPayload(config, configPath, {
+            dryRun,
+            emitAnnotations,
+            failOnFindings,
+            writeStepSummary,
+            openAiApiKeyProvided: Boolean(openAiApiKey),
+            reportJsonPath,
+            effectiveConfigJsonPath,
+            subjectKind: subject?.kind ?? null
+        }, diagnostics)), warn);
+    }
     if (!subject) {
         const skipReason = `event ${github_context.eventName} is not handled`;
-        setSkippedOutputs(skipReason, reportJsonPath, diagnostics);
         const skippedReport = composeSkippedReport(null, skipReason, config);
         info(skippedReport);
         if (reportJsonPath) {
@@ -49412,15 +49773,15 @@ async function run() {
                 failOnFindings,
                 openAiApiKeyProvided: Boolean(openAiApiKey),
                 reportJsonPath,
+                effectiveConfigJsonPath,
                 subjectKind: null
             }, skippedReport), warn);
         }
-        setSkippedOutputs(skipReason, reportJsonPath, diagnostics);
+        setSkippedOutputs(skipReason, reportJsonPath, effectiveConfigJsonPath, diagnostics, config);
         return;
     }
     const skipReason = getSkipReason(subject, config);
     if (skipReason) {
-        setSkippedOutputs(skipReason, reportJsonPath, diagnostics);
         const skippedReport = composeSkippedReport(subject, skipReason, config);
         info(skippedReport);
         if (!dryRun) {
@@ -49445,10 +49806,11 @@ async function run() {
                 failOnFindings,
                 openAiApiKeyProvided: Boolean(openAiApiKey),
                 reportJsonPath,
+                effectiveConfigJsonPath,
                 subjectKind: subject.kind
             }, skippedReport), warn);
         }
-        setSkippedOutputs(skipReason, reportJsonPath, diagnostics);
+        setSkippedOutputs(skipReason, reportJsonPath, effectiveConfigJsonPath, diagnostics, config);
         return;
     }
     const ruleFindings = analyzeSubject(subject, config);
@@ -49459,19 +49821,20 @@ async function run() {
     if (hasPossibleSecret && config.ai.enabled && openAiApiKey) {
         warn("Skipping OpenAI analysis because a possible secret or credential was detected in the subject.");
     }
-    const guidanceDocs = config.ai.enabled && openAiApiKey && !hasPossibleSecret
+    const shouldRunAi = config.ai.enabled && Boolean(openAiApiKey) && !hasPossibleSecret;
+    const guidanceDocs = shouldRunAi
         ? await loadRepositoryGuidance(octokit, owner, repo, configRef, config, warn)
         : [];
-    const aiFindings = hasPossibleSecret
-        ? []
-        : await analyzeWithAi(subject, config, openAiApiKey, guidanceDocs, warn);
+    const aiFindings = shouldRunAi
+        ? await analyzeWithAi(subject, config, openAiApiKey, guidanceDocs, warn)
+        : [];
     const findings = applyFindingPolicy(dedupeFindings([...ruleFindings, ...aiFindings]), config);
     const routingHints = subject.kind === "pull_request"
         ? await loadCodeOwnerHints(octokit, owner, repo, configRef, config, subject, warn)
         : [];
     const summary = createReviewSummary(subject, findings, config, routingHints);
     const report = composeReport(subject, findings, config, summary);
-    setCompletedOutputs(summary, findings, reportJsonPath, diagnostics);
+    setCompletedOutputs(summary, findings, reportJsonPath, effectiveConfigJsonPath, diagnostics, config);
     if (emitAnnotations) {
         emitFindingAnnotations(findings, config);
     }
@@ -49505,77 +49868,13 @@ async function run() {
             failOnFindings,
             openAiApiKeyProvided: Boolean(openAiApiKey),
             reportJsonPath,
+            effectiveConfigJsonPath,
             subjectKind: subject.kind
         }, report), warn);
     }
-    setCompletedOutputs(summary, findings, reportJsonPath, diagnostics);
+    setCompletedOutputs(summary, findings, reportJsonPath, effectiveConfigJsonPath, diagnostics, config);
     if (failOnFindings && shouldFail(findings)) {
         setFailed("Maintainer Firewall produced warning or error findings.");
-    }
-}
-function dedupeFindings(findings) {
-    const seen = new Set();
-    const output = [];
-    for (const finding of findings) {
-        const key = `${finding.id}:${finding.title}`;
-        if (seen.has(key)) {
-            continue;
-        }
-        seen.add(key);
-        output.push(finding);
-    }
-    return output;
-}
-function setSkippedOutputs(skipReason, reportJsonPath, diagnostics) {
-    setOutput("skipped", "true");
-    setOutput("skip-reason", skipReason);
-    setOutput("outcome", "skipped");
-    setOutput("score", "");
-    setOutput("findings-count", "0");
-    setOutput("labels", "");
-    setOutput("routing-hints", "[]");
-    setOutput("report-json-path", reportJsonPath ?? "");
-    setDiagnosticOutputs(diagnostics);
-}
-function setCompletedOutputs(summary, findings, reportJsonPath, diagnostics) {
-    setOutput("skipped", "false");
-    setOutput("skip-reason", "");
-    setOutput("outcome", summary.outcome);
-    setOutput("score", String(summary.score));
-    setOutput("findings-count", String(findings.length));
-    setOutput("labels", summary.labels.join(","));
-    setOutput("routing-hints", JSON.stringify(summary.routingHints));
-    setOutput("report-json-path", reportJsonPath ?? "");
-    setDiagnosticOutputs(diagnostics);
-}
-function parseBoolean(value) {
-    return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
-}
-async function writeSummary(operation, summary, warningSink) {
-    await tryWrite(operation, async () => {
-        await summary_summary.addRaw(summary, true).write();
-    }, warningSink);
-}
-function composeRunStepSummary(config, configPath, diagnostics, options, report) {
-    return composeStepSummary(composeSetupSummary({
-        config,
-        configPath,
-        configWarnings: diagnostics.configWarnings,
-        runtimeWarnings: diagnostics.runtimeWarnings,
-        dryRun: options.dryRun,
-        emitAnnotations: options.emitAnnotations,
-        failOnFindings: options.failOnFindings,
-        openAiApiKeyProvided: options.openAiApiKeyProvided,
-        reportJsonPath: options.reportJsonPath,
-        subjectKind: options.subjectKind
-    }), report);
-}
-async function tryWrite(operation, write, warningSink = (message) => core_warning(message)) {
-    try {
-        await write();
-    }
-    catch (error) {
-        warningSink(`Could not ${operation}: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 run().catch((error) => {

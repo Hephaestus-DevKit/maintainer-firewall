@@ -1,5 +1,6 @@
 import type { FirewallConfig } from "./types.js";
 import { isProtectedFindingId } from "./finding-ids.js";
+import { configuredRegexWarnings } from "./regex.js";
 
 export function validateConfig(config: FirewallConfig): string[] {
   const warnings: string[] = [];
@@ -8,9 +9,9 @@ export function validateConfig(config: FirewallConfig): string[] {
     warnings.push(`Unsupported config version ${config.version}; version 1 is the only supported version.`);
   }
 
-  warnings.push(...invalidRegexWarnings("security.reportPatterns", config.security.reportPatterns));
-  warnings.push(...invalidRegexWarnings("security.secretPatterns", config.security.secretPatterns));
-  warnings.push(...invalidRegexWarnings("ignore.titlePatterns", config.ignore.titlePatterns));
+  warnings.push(...configuredRegexWarnings("security.reportPatterns", config.security.reportPatterns));
+  warnings.push(...configuredRegexWarnings("security.secretPatterns", config.security.secretPatterns));
+  warnings.push(...configuredRegexWarnings("ignore.titlePatterns", config.ignore.titlePatterns));
 
   const labelValues = Object.values(config.labels).filter(Boolean);
   const duplicateLabels = labelValues.filter((label, index) => labelValues.indexOf(label) !== index);
@@ -29,20 +30,6 @@ export function validateConfig(config: FirewallConfig): string[] {
   warnings.push(...rulePolicyWarnings(config));
 
   return warnings;
-}
-
-function invalidRegexWarnings(path: string, patterns: string[]): string[] {
-  return patterns
-    .map((pattern, index) => {
-      try {
-        new RegExp(pattern);
-        return null;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return `${path}[${index}] contains an invalid regular expression: ${message}`;
-      }
-    })
-    .filter((warning): warning is string => Boolean(warning));
 }
 
 function rulePolicyWarnings(config: FirewallConfig): string[] {

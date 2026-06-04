@@ -21,6 +21,13 @@ describe("redactByPatterns", () => {
       details: "Details mention sk-abc12345678901234567890",
       suggestion: "Rotate sk-abc12345678901234567890",
       label: "securityReview",
+      references: [
+        {
+          source: "config",
+          path: "pullRequest.requiredSections",
+          label: "Token sk-abc12345678901234567890"
+        }
+      ],
       source: "ai"
     };
 
@@ -29,7 +36,14 @@ describe("redactByPatterns", () => {
       id: "ai.secret.[redacted]",
       title: "Token [redacted]",
       details: "Details mention [redacted]",
-      suggestion: "Rotate [redacted]"
+      suggestion: "Rotate [redacted]",
+      references: [
+        {
+          source: "config",
+          path: "pullRequest.requiredSections",
+          label: "Token [redacted]"
+        }
+      ]
     });
   });
 
@@ -40,7 +54,7 @@ describe("redactByPatterns", () => {
       headline: "Token sk-abc12345678901234567890 appears",
       nextSteps: ["Rotate sk-abc12345678901234567890"],
       passedChecks: ["No sk-abc12345678901234567890 in checks"],
-      labels: ["security-review"],
+      labels: ["security-sk-abc12345678901234567890"],
       routingHints: [
         {
           owner: "@security",
@@ -54,6 +68,7 @@ describe("redactByPatterns", () => {
     expect(JSON.stringify(redacted)).not.toContain("sk-abc12345678901234567890");
     expect(redacted.headline).toBe("Token [redacted] appears");
     expect(redacted.nextSteps).toEqual(["Rotate [redacted]"]);
+    expect(redacted.labels).toEqual(["security-[redacted]"]);
     expect(redacted.routingHints[0]?.files).toEqual(["src/[redacted].ts"]);
   });
 });

@@ -1,5 +1,6 @@
 import { minimatch } from "minimatch";
 import { redactByPatterns } from "./redaction.js";
+import { matchesAnyConfiguredRegex } from "./regex.js";
 import type {
   ChangedFile,
   Finding,
@@ -14,7 +15,7 @@ const REPRODUCTION_PATTERN =
 const ENVIRONMENT_PATTERN =
   /\b(version|node|npm|pnpm|yarn|bun|browser|chrome|firefox|safari|edge|os|platform|environment|python|rust|cargo|go version|java)\b/i;
 const LINKED_ISSUE_PATTERN =
-  /\b(close[sd]?|fix(e[sd])?|resolve[sd]?)\s*:?\s*(#\d+|https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/\d+)|(^|\s)#\d+\b/i;
+  /\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?|references?|refs?|related)\s*:?\s*(#\d+|https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/\d+)|(^|[^\w#])#\d+\b/i;
 
 export function analyzeSubject(subject: Subject, config: FirewallConfig): Finding[] {
   if (subject.kind === "issue") {
@@ -115,7 +116,7 @@ function analyzePullRequest(pr: PullRequestSubject, config: FirewallConfig): Fin
 
   addRequiredSectionFindings(findings, body, "pr", config.pullRequest.requiredSections);
 
-  if (config.pullRequest.requireLinkedIssue && !LINKED_ISSUE_PATTERN.test(body)) {
+  if (config.pullRequest.requireLinkedIssue && !hasLinkedIssue(body)) {
     findings.push({
       id: "pr.linked_issue.missing",
       severity: "notice",
@@ -236,13 +237,58 @@ function addRequiredSectionFindings(
     details: `Missing section${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}.`,
     suggestion: "Please fill out the missing template sections before review.",
     label: "needsInfo",
+    references: missing.map((section) => ({
+      source: "config",
+      path: subjectKind === "issue" ? "issue.requiredSections" : "pullRequest.requiredSections",
+      label: section
+    })),
     source: "rule"
   });
 }
 
 function hasSection(body: string, section: string): boolean {
+  const searchableBody = stripFencedCodeBlocks(body);
   const escaped = section.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|\\n)\\s{0,3}#{1,6}\\s*${escaped}\\s*$|(^|\\n)\\s*${escaped}\\s*:`, "im").test(body);
+  return new RegExp(`(^|\\n)\\s{0,3}#{1,6}\\s*${escaped}\\s*$|(^|\\n)\\s*${escaped}\\s*:`, "im").test(searchableBody);
+}
+
+function hasLinkedIssue(body: string): boolean {
+  return stripFencedCodeBlocks(body)
+    .split(/\r?\n/)
+    .some((line) => {
+      if (/^\s{0,3}#{1,6}\s*#?\d+\b/.test(line)) {
+        return false;
+      }
+
+      return LINKED_ISSUE_PATTERN.test(line);
+    });
+}
+
+function stripFencedCodeBlocks(value: string): string {
+  const output: string[] = [];
+  let fenceMarker: "`" | "~" | null = null;
+
+  for (const line of value.split(/\r?\n/)) {
+    const fence = line.match(/^\s{0,3}(`{3,}|~{3,})/);
+    if (fence) {
+      const marker = fence[1]?.startsWith("`") ? "`" : "~";
+      if (!fenceMarker) {
+        fenceMarker = marker;
+        continue;
+      }
+
+      if (fenceMarker === marker) {
+        fenceMarker = null;
+        continue;
+      }
+    }
+
+    if (!fenceMarker) {
+      output.push(line);
+    }
+  }
+
+  return output.join("\n");
 }
 
 function hasCodeChanges(files: ChangedFile[]): boolean {
@@ -251,13 +297,15 @@ function hasCodeChanges(files: ChangedFile[]): boolean {
       return false;
     }
 
-    return /\.(c|cc|cpp|cs|go|java|js|jsx|kt|mjs|php|py|rb|rs|swift|ts|tsx)$/i.test(file.filename) &&
+    return /\.(c|cc|cpp|cs|cts|go|java|js|jsx|kt|mjs|mts|php|py|rb|rs|swift|ts|tsx|vue|svelte)$/i.test(file.filename) &&
       !isTestPath(file.filename);
   });
 }
 
 function hasTestChanges(files: ChangedFile[], testPathPatterns: string[]): boolean {
-  return files.some((file) => isTestPath(file.filename) || matchesAny(file.filename, testPathPatterns));
+  return files.some((file) =>
+    file.status !== "removed" && (isTestPath(file.filename) || matchesAny(file.filename, testPathPatterns))
+  );
 }
 
 function isTestPath(filename: string): boolean {
@@ -269,11 +317,5 @@ function matchesAny(filename: string, patterns: string[]): boolean {
 }
 
 function matchesAnyRegex(value: string, patterns: string[]): boolean {
-  return patterns.some((pattern) => {
-    try {
-      return new RegExp(pattern, "i").test(value);
-    } catch {
-      return false;
-    }
-  });
+  return matchesAnyConfiguredRegex(value, patterns);
 }

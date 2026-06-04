@@ -11,11 +11,25 @@ Use these checks by default:
 | Normal pull request | `npm run ci` |
 | Report text, scoring, labels, or summaries changed | `npm run ci` and `npm run demo` |
 | Runtime source changed | `npm run bundle`, then `npm run ci` |
+| Orchestration, rule matching, or GitHub API behavior changed | `npm run check`, `npm run coverage`, and targeted tests |
+| Rule behavior or prompt boundary changed | `npm run evaluate` and targeted tests |
+| Optional AI prompt behavior changed | `npm run evaluate` and explicit `npm run evaluate:ai` when an API key is available |
+| Package contents changed | `npm pack --dry-run` |
+| Marketplace readiness | `npm run market:check` |
 | Release candidate | `npm run release:check` |
 
-`npm run ci` runs the TypeScript build, test suite, and bundled `dist/` verification.
-`npm run release:check` adds the demo run and moderate-severity dependency audit.
+`npm run ci` runs the TypeScript build, test suite, deterministic evaluation fixtures, and bundled `dist/` verification.
+`npm run release:check` adds coverage thresholds, the demo run, bundled `dist/` verification, and moderate-severity dependency audit.
+`npm run market:check` runs local market-readiness checks, including package dry-run contents and required launch docs.
+`npm run evaluate` runs deterministic product fixtures without calling OpenAI.
+`npm run evaluate:ai` is an explicit live OpenAI smoke test and is not part of CI.
 `npm run bundle` updates the committed action bundle after runtime source changes.
+
+## Test And Coverage Boundaries
+
+`npm run coverage` explicitly includes `src/**/*.ts` and excludes only `src/index.ts` and `src/types.ts`.
+
+Keep `src/index.ts` as a thin GitHub Action process entry point. If new parsing, output, summary, or best-effort write behavior is needed, put the testable logic in `src/action-runtime.ts` or the relevant domain module, then cover it with focused tests. Do not lower coverage thresholds to make a release pass; add tests or remove dead branches.
 
 ## Pull Request Review
 
@@ -25,6 +39,7 @@ Check these before merging:
 - New or changed behavior has focused tests.
 - Runtime source changes include the bundled `dist/index.js` and `dist/index.js.map`.
 - Public inputs, outputs, finding IDs, report JSON shape, examples, README tables, and docs are updated together.
+- Effective-config output remains redacted and does not expose configured secret regex source.
 - Best-effort failures are recorded through runtime diagnostics instead of only appearing in logs.
 - Secret-like values remain redacted in comments, summaries, annotations, outputs, and JSON reports.
 

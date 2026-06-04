@@ -70,6 +70,7 @@ Deterministic rules still run without AI.
 
 The action normalizes invalid or below-minimum config values to safe defaults and emits workflow warnings.
 The same configuration diagnostics are also visible in the Actions step summary, the `config-warnings-count` and `config-warnings` outputs, and structured JSON reports when `report-json-path` is configured.
+Set `effective-config-json-path` during rollout to inspect a redacted snapshot of active checks, thresholds, labels, rule policy, AI state, and diagnostics.
 
 Common examples:
 
@@ -77,6 +78,7 @@ Common examples:
 - Invalid `comment.postWhen`.
 - Numeric setting below the minimum.
 - Array field provided as a non-array value.
+- Invalid or potentially unsafe regular expression patterns.
 
 Use the schema line for editor guidance:
 
@@ -97,6 +99,16 @@ Check the setup table first:
 
 If labels or comments did not change but the report exists, runtime warnings usually point to a permission issue, missing label permission, unavailable GitHub API endpoint, or a write path problem.
 
+## Coverage Checks
+
+For local coverage inspection, run:
+
+```bash
+npm run coverage
+```
+
+Coverage output is not part of the default CI gate, but it is useful before changing orchestration, report rendering, GitHub API behavior, or rule matching.
+
 ## Finding Seems Wrong
 
 Use the finding ID shown in the report table and check [Rules](RULES.md).
@@ -106,6 +118,7 @@ Typical adjustments:
 - Raise or lower `issue.minBodyCharacters`.
 - Disable `issue.requireEnvironment` for projects where environment rarely matters.
 - Tune `pullRequest.testPathPatterns` when tests live in custom directories.
+- Remember that deleted test files do not count as a passing test signal for code changes.
 - Raise `pullRequest.largeChangeThreshold` for repositories with large generated changes.
 - Add or remove `pullRequest.sensitivePaths`.
 - Suppress a calibrated false positive with `rules.disabled`.

@@ -216,7 +216,7 @@ function normalizeAiFinding(value: unknown, index: number): Finding | null {
   }
 
   return {
-    id: normalizeAiText(record.id ?? `ai.finding.${index + 1}`, AI_ID_MAX_CHARACTERS),
+    id: normalizeAiId(record.id, index),
     severity: severity as Finding["severity"],
     title,
     details,
@@ -224,6 +224,25 @@ function normalizeAiFinding(value: unknown, index: number): Finding | null {
     label,
     source: "ai"
   };
+}
+
+function normalizeAiId(value: unknown, index: number): string {
+  const fallback = `ai.finding.${index + 1}`;
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const compacted = normalizeAiText(value, AI_ID_MAX_CHARACTERS)
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, ".")
+    .replace(/\.+/g, ".")
+    .replace(/^[._-]+|[._-]+$/g, "");
+  const withPrefix = compacted
+    ? compacted.startsWith("ai.") ? compacted : `ai.${compacted}`
+    : fallback;
+  const truncated = withPrefix.slice(0, AI_ID_MAX_CHARACTERS);
+
+  return truncated.replace(/[._-]+$/g, "") || fallback;
 }
 
 function normalizeAiText(value: unknown, maxCharacters: number): string {

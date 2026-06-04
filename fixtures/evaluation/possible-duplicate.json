@@ -1,0 +1,28 @@
+{
+  "name": "possible-duplicate",
+  "subject": {
+    "kind": "issue",
+    "number": 105,
+    "title": "Parser crash on startup",
+    "body": "Version 1.2.3 on Node 22 crashes after running npm test during startup. Expected startup to finish, actual runtime exception.",
+    "author": "reporter",
+    "labels": [],
+    "htmlUrl": "https://github.com/example/repo/issues/105",
+    "duplicateCandidates": [
+      {
+        "number": 18,
+        "title": "Parser crash on startup",
+        "url": "https://github.com/example/repo/issues/18",
+        "similarity": 0.92
+      }
+    ]
+  },
+  "expectedFindings": [
+    "issue.duplicate.possible"
+  ],
+  "unexpectedFindings": [
+    "issue.body.too_short"
+  ],
+  "expectedOutcome": "possible_duplicate",
+  "expectedAiEligible": false
+}

@@ -1,13 +1,8 @@
 import type { Finding, ReviewSummary } from "./types.js";
+import { replaceByConfiguredRegexes } from "./regex.js";
 
 export function redactByPatterns(value: string, patterns: string[], replacement = "[redacted]"): string {
-  return patterns.reduce((output, pattern) => {
-    try {
-      return output.replace(new RegExp(pattern, "gi"), replacement);
-    } catch {
-      return output;
-    }
-  }, value);
+  return replaceByConfiguredRegexes(value, patterns, replacement);
 }
 
 export function redactFinding(finding: Finding, patterns: string[]): Finding {
@@ -16,7 +11,13 @@ export function redactFinding(finding: Finding, patterns: string[]): Finding {
     id: redactByPatterns(finding.id, patterns),
     title: redactByPatterns(finding.title, patterns),
     details: redactByPatterns(finding.details, patterns),
-    suggestion: finding.suggestion ? redactByPatterns(finding.suggestion, patterns) : undefined
+    suggestion: finding.suggestion ? redactByPatterns(finding.suggestion, patterns) : undefined,
+    references: finding.references?.map((reference) => ({
+      ...reference,
+      path: redactByPatterns(reference.path, patterns),
+      label: reference.label ? redactByPatterns(reference.label, patterns) : undefined,
+      url: reference.url ? redactByPatterns(reference.url, patterns) : undefined
+    }))
   };
 }
 
@@ -26,6 +27,7 @@ export function redactReviewSummary(summary: ReviewSummary, patterns: string[]):
     headline: redactByPatterns(summary.headline, patterns),
     nextSteps: summary.nextSteps.map((step) => redactByPatterns(step, patterns)),
     passedChecks: summary.passedChecks.map((check) => redactByPatterns(check, patterns)),
+    labels: summary.labels.map((label) => redactByPatterns(label, patterns)),
     routingHints: summary.routingHints.map((hint) => ({
       ...hint,
       owner: redactByPatterns(hint.owner, patterns),

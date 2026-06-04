@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { configShapeWarnings, defaultConfig, mergeConfig } from "../src/config.js";
+import { describe, expect, it, vi } from "vitest";
+import { configShapeWarnings, defaultConfig, loadConfigWithDiagnostics, mergeConfig } from "../src/config.js";
+
+vi.mock("@actions/core", () => ({
+  info: vi.fn(),
+  warning: vi.fn()
+}));
 
 describe("mergeConfig", () => {
   it("merges valid partial config values", () => {
@@ -100,3 +105,91 @@ describe("mergeConfig", () => {
     expect(warnings).toContain("config.pullRequest.largeChangeThreshold should be at least 1; using 1 during normalization.");
   });
 });
+
+describe("loadConfigWithDiagnostics", () => {
+  it("loads and merges repository config files", async () => {
+    const octokit = octokitWithContent("version: 1\ncomment:\n  postWhen: always\n");
+
+    const result = await loadConfigWithDiagnostics(octokit as never, "octo", "repo", ".maintainer-firewall.yml", "main");
+
+    expect(result.config.comment.postWhen).toBe("always");
+    expect(result.warnings).toEqual([]);
+    expect(octokit.rest.repos.getContent).toHaveBeenCalledWith({
+      owner: "octo",
+      repo: "repo",
+      path: ".maintainer-firewall.yml",
+      ref: "main"
+    });
+  });
+
+  it("falls back to defaults when config is missing", async () => {
+    const octokit = {
+      rest: {
+        repos: {
+          getContent: async () => {
+            throw { status: 404 };
+          }
+        }
+      }
+    };
+
+    const result = await loadConfigWithDiagnostics(octokit as never, "octo", "repo", ".maintainer-firewall.yml");
+
+    expect(result.config).toEqual(defaultConfig);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("warns and falls back when config path is not a file", async () => {
+    const octokit = {
+      rest: {
+        repos: {
+          getContent: async () => ({
+            data: [
+              {
+                type: "file",
+                name: "config.yml"
+              }
+            ]
+          })
+        }
+      }
+    };
+
+    const result = await loadConfigWithDiagnostics(octokit as never, "octo", "repo", ".maintainer-firewall.yml");
+
+    expect(result.config).toEqual(defaultConfig);
+    expect(result.warnings).toEqual([".maintainer-firewall.yml is not a file. Falling back to defaults."]);
+  });
+
+  it("warns and falls back on non-404 load errors", async () => {
+    const octokit = {
+      rest: {
+        repos: {
+          getContent: async () => {
+            throw new Error("rate limited");
+          }
+        }
+      }
+    };
+
+    const result = await loadConfigWithDiagnostics(octokit as never, "octo", "repo", ".maintainer-firewall.yml");
+
+    expect(result.config).toEqual(defaultConfig);
+    expect(result.warnings).toEqual(["Failed to load .maintainer-firewall.yml: rate limited. Using defaults."]);
+  });
+});
+
+function octokitWithContent(content: string) {
+  return {
+    rest: {
+      repos: {
+        getContent: vi.fn().mockResolvedValue({
+          data: {
+            type: "file",
+            content: Buffer.from(content, "utf8").toString("base64")
+          }
+        })
+      }
+    }
+  };
+}

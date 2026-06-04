@@ -1,5 +1,5 @@
 import type { Finding, FirewallConfig, ReviewSummary, Subject } from "./types.js";
-import { redactFinding, redactReviewSummary } from "./redaction.js";
+import { redactByPatterns, redactFinding, redactReviewSummary } from "./redaction.js";
 import { outcomeLabel } from "./review.js";
 
 const MARKER = "<!-- maintainer-firewall:report -->";
@@ -80,13 +80,14 @@ export function composeReport(
 }
 
 export function composeSkippedReport(subject: Subject | null, skipReason: string, config: FirewallConfig): string {
+  const safeSkipReason = escapeMarkdownLine(redactByPatterns(skipReason, config.security.secretPatterns));
   const lines = [
     MARKER,
     `## ${config.comment.header}`,
     "",
     subject
-      ? `Skipped ${subject.kind === "issue" ? "issue" : "pull request"} #${subject.number}: ${skipReason}.`
-      : `Skipped: ${skipReason}.`,
+      ? `Skipped ${subject.kind === "issue" ? "issue" : "pull request"} #${subject.number}: ${safeSkipReason}.`
+      : `Skipped: ${safeSkipReason}.`,
     "",
     "_Maintainer Firewall skipped this subject because an ignore rule matched._"
   ];
@@ -135,6 +136,10 @@ function escapeTable(value: string): string {
 
 function escapeInlineCode(value: string): string {
   return value.replace(/`/g, "'");
+}
+
+function escapeMarkdownLine(value: string): string {
+  return value.replace(/\n/g, " ").replace(/\|/g, "\\|");
 }
 
 function appendPassedChecks(lines: string[], config: FirewallConfig, summary: ReviewSummary): void {

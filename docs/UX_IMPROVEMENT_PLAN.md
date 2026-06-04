@@ -1,8 +1,8 @@
 # User Experience Improvement Plan
 
-Status: approved direction; Phase 0, part of Phase 1, and the highest-value Phase 2 tuning controls are implemented in v0.6.0.
+Status: approved direction; Phase 0, Phase 1, part of Phase 2, and the highest-value calibration controls are implemented in v0.6.0.
 
-Baseline: Maintainer Firewall v0.6.0 already supports low-noise triage reports, labels, setup-state step summaries, structured JSON reports with configuration and runtime diagnostics, optional workflow annotations, CODEOWNERS routing hints, configuration schema guidance, stable finding IDs, focused onboarding docs, exact finding-ID suppression, exact finding-ID severity overrides, warning outputs, and optional AI-assisted semantic review.
+Baseline: Maintainer Firewall v0.6.0 already supports low-noise triage reports, labels, setup-state step summaries, structured JSON reports with configuration and runtime diagnostics, redacted effective-config reports, optional workflow annotations, CODEOWNERS routing hints, configuration schema guidance, stable finding IDs, focused onboarding docs, exact finding-ID suppression, exact finding-ID severity overrides, warning outputs, deterministic evaluation fixtures, metrics workflow examples, and optional AI-assisted semantic review.
 
 ## Objective
 
@@ -45,7 +45,7 @@ The north-star user outcome is: a maintainer can install safely in under 10 minu
 | Installation | README mixes quick start, safety notes, inputs, config, and release info in one long page. | First-time users can miss important permission or rollout details. |
 | Mode selection | Users must combine `dry-run`, `labeling.enabled`, `comment.postWhen`, annotations, summaries, and JSON manually. | More setup errors and inconsistent rollout patterns. |
 | First run | There is no dedicated "what to look at after the first run" checklist. | Users may not know whether findings are expected, noisy, or misconfigured. |
-| Config tuning | Schema, exact finding-ID policy, surfaced configuration diagnostics, and surfaced runtime diagnostics now exist, but there is no downloadable effective-config output. | Debugging complex org configs may still need an effective-config report. |
+| Config tuning | Schema, exact finding-ID policy, surfaced diagnostics, and redacted effective-config output now exist. | Complex org configs still need real pilot feedback before central policy support. |
 | Report explainability | Stable IDs and rule docs now exist, but project-specific guidance links are still not attached to individual findings. | Contributors may still need template examples for some project-specific cases. |
 | Contributor UX | Next steps are good, but not yet linked to project-specific examples or accepted evidence patterns. | Contributors may still ask what counts as enough information. |
 | Long-term operations | JSON output exists, but no documented metrics workflow or dashboard path exists. | Teams cannot easily measure noise reduction or false positives. |
@@ -114,7 +114,7 @@ Make configuration understandable after installation.
 
 Recommended product changes:
 
-- Emit an "effective configuration" summary in logs or JSON when requested.
+- Keep the effective configuration JSON useful and redacted as new config fields are added.
 - Add a `diagnostics` or `config-report` input that writes:
   - loaded config path
   - unknown keys ignored or rejected
@@ -168,7 +168,7 @@ Recommended product changes:
   - matched CODEOWNERS entries
   - duplicate candidates inspected
   - applied labels and removed stale labels
-- Add `report-json-path` examples for uploading an artifact or feeding a dashboard step.
+- Keep the `report-json-path` metrics example aligned with the JSON report contract.
 - Add documented label strategy:
   - suggested labels
   - managed labels
@@ -261,7 +261,7 @@ Goal: make the first run self-explanatory.
 Deliverables:
 
 - Setup/effective-config section in step summary.
-- Optional `config-report` or `diagnostics` input.
+- Optional redacted effective-config JSON output. (implemented as `effective-config-json-path`)
 - Structured diagnostics in JSON reports. (configuration warnings implemented)
 - Warning copy improved for common mistakes.
 - Tests for config diagnostics and summary output.
@@ -346,7 +346,7 @@ Please review these product decisions before implementation:
 1. Should the next batch stay documentation-first, or should it include stable finding IDs immediately?
 2. Should rollout behavior be controlled by a new high-level `mode` input, or should we avoid another input and rely on preset workflow examples?
 3. Should contributor-facing comments include finding IDs, or should IDs stay in JSON/annotations only to keep comments friendlier?
-4. Should long-term metrics be a first-class action feature, or only documented through `report-json-path` examples at first?
+4. Which pilot repositories can provide enough JSON reports to justify a first-class metrics feature?
 
 ## Risks
 
