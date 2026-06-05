@@ -2,6 +2,12 @@
 
 All notable changes to Maintainer Firewall will be documented in this file.
 
+## 0.7.1 - Release Provenance and Example Hardening
+
+- Publishes tagged release assets with GitHub artifact attestations.
+- Updates the metrics workflow example to the current artifact upload action.
+- Extends market-readiness checks to guard release attestation and example drift.
+
 ## 0.7.0 - Market Readiness Hardening
 
 - Adds V1 contract, market-readiness, adoption, pilot, metrics, evaluation, and AI data-boundary documentation.
