@@ -72,6 +72,10 @@ if (!packageJson.scripts?.["market:check"]?.includes("npm run ci")) {
   throw new Error("package.json market:check should include npm run ci so bundled dist verification cannot be skipped.");
 }
 
+if (!packageJson.devDependencies?.["fast-check"]) {
+  throw new Error("package.json should include fast-check for property-based fuzz coverage.");
+}
+
 if (!marketplaceReadiness.includes("GitHub Marketplace has repository-level listing requirements")) {
   throw new Error("docs/MARKETPLACE_READINESS.md should document the direct Marketplace listing caveat.");
 }
@@ -102,6 +106,10 @@ if (!maintenanceGuide.includes("gh attestation verify")) {
 
 if (!marketplaceReadiness.includes("GitHub artifact attestations")) {
   throw new Error("docs/MARKETPLACE_READINESS.md should include release attestation readiness.");
+}
+
+if (!marketplaceReadiness.includes("Property-based tests cover redaction")) {
+  throw new Error("docs/MARKETPLACE_READINESS.md should document property-based fuzz coverage.");
 }
 
 for (const fixture of [

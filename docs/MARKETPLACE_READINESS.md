@@ -24,6 +24,7 @@ GitHub Marketplace has repository-level listing requirements in addition to prod
 - `npm run check`, `npm run coverage`, `npm run demo`, `npm audit --audit-level=moderate`, and `npm pack --dry-run` pass.
 - `npm run market:check` passes, including CI, bundled `dist/` verification, coverage, demo, audit, package dry-run, and launch-document checks.
 - Coverage is configured to include source modules explicitly, with only the thin action entry point and type-only module excluded.
+- Property-based tests cover redaction, configured-regex safety, truncation bounds, and duplicate-title similarity invariants.
 
 Additional requirements before a direct GitHub Marketplace listing:
 
@@ -43,6 +44,7 @@ Additional requirements before a direct GitHub Marketplace listing:
 - Run CodeQL and dependency update workflows.
 - Run OpenSSF Scorecard before public launch and record remediation items. This repository includes `.github/workflows/scorecard.yml` for scheduled and manual checks.
 - Generate GitHub artifact attestations for release assets.
+- Keep property-based fuzz coverage on text and redaction boundaries.
 - Keep CODEOWNERS review on workflow, action metadata, runtime source, bundle, schema, package, and release-gate files.
 - Keep the AI data boundary documented before promoting optional AI usage.
 
