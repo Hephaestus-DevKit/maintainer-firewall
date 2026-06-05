@@ -20,7 +20,7 @@ GitHub Marketplace has repository-level listing requirements in addition to prod
 - README includes install path, permissions, safety boundary, and examples.
 - License, security policy, support policy, contribution guide, and changelog are present.
 - Package dry-run contains only runtime bundle, docs, examples, schema, and required metadata.
-- Tagged releases publish an attested `.tgz` asset that can be verified with GitHub artifact attestations.
+- Tagged releases publish an attested `.tgz` asset and a `.sigstore.json` bundle that can be verified with GitHub artifact attestations.
 - `npm run check`, `npm run coverage`, `npm run demo`, `npm audit --audit-level=moderate`, and `npm pack --dry-run` pass.
 - `npm run market:check` passes, including CI, bundled `dist/` verification, coverage, demo, audit, package dry-run, and launch-document checks.
 - Coverage is configured to include source modules explicitly, with only the thin action entry point and type-only module excluded.

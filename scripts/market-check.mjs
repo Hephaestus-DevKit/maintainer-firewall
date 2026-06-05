@@ -87,7 +87,9 @@ if (!metricsWorkflow.includes("actions/upload-artifact@v7")) {
 for (const requiredReleaseWorkflowText of [
   "attestations: write",
   "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26",
-  "release-assets/*.tgz"
+  "steps.attest.outputs.bundle-path",
+  ".tgz.sigstore.json",
+  "release-assets/*"
 ]) {
   if (!releaseWorkflow.includes(requiredReleaseWorkflowText)) {
     throw new Error(`.github/workflows/release.yml should include ${requiredReleaseWorkflowText}.`);
