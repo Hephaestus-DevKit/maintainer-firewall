@@ -15,7 +15,15 @@ export interface Finding {
   details: string;
   suggestion?: string;
   label?: LabelKey;
+  references?: FindingReference[];
   source: "rule" | "ai";
+}
+
+export interface FindingReference {
+  source: "config" | "guidance";
+  path: string;
+  label?: string;
+  url?: string;
 }
 
 export type Outcome =

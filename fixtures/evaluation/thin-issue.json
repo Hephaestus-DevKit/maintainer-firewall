@@ -1,0 +1,23 @@
+{
+  "name": "thin-issue",
+  "subject": {
+    "kind": "issue",
+    "number": 102,
+    "title": "It crashes",
+    "body": "It crashes for me.",
+    "author": "reporter",
+    "labels": [],
+    "htmlUrl": "https://github.com/example/repo/issues/102",
+    "duplicateCandidates": []
+  },
+  "expectedFindings": [
+    "issue.body.too_short",
+    "issue.reproduction.missing",
+    "issue.environment.missing"
+  ],
+  "unexpectedFindings": [
+    "content.secret.possible"
+  ],
+  "expectedOutcome": "needs_info",
+  "expectedAiEligible": false
+}

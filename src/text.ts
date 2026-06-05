@@ -43,7 +43,7 @@ export function jaccardSimilarity(left: string, right: string): number {
   const leftTokens = new Set(tokenize(left));
   const rightTokens = new Set(tokenize(right));
 
-  if (leftTokens.size === 0 || rightTokens.size === 0) {
+  if (leftTokens.size < 2 || rightTokens.size < 2) {
     return 0;
   }
 

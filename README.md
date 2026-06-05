@@ -11,6 +11,14 @@ It does not try to prove whether a contribution was AI-generated. Instead, it as
 - [Rules](docs/RULES.md): finding IDs, trigger conditions, labels, severities, and tuning knobs.
 - [Troubleshooting](docs/TROUBLESHOOTING.md): common setup, permission, AI, comment, label, and release issues.
 - [Architecture](docs/ARCHITECTURE.md): internal flow and safety model.
+- [Maintenance](docs/MAINTENANCE.md): PR review, release, dependency, and diagnostic maintenance gates.
+- [V1 Contract](docs/V1_CONTRACT.md): stable inputs, outputs, JSON report shape, finding policy, and compatibility rules.
+- [Marketplace Readiness](docs/MARKETPLACE_READINESS.md): public beta, v1 launch, security, packaging, and listing checklist.
+- [Adoption Playbook](docs/ADOPTION_PLAYBOOK.md): design partner pilot, metrics, feedback form, and case-study template.
+- [Pilot Runbook](docs/PILOT_RUNBOOK.md): concrete two-week audit-mode pilot procedure and exit criteria.
+- [Evaluation Plan](docs/EVALUATION.md): deterministic, AI, prompt-injection, duplicate, and regression fixture plan.
+- [AI Data Boundary](docs/AI_DATA_BOUNDARY.md): exactly when optional AI runs and what redacted data can be sent.
+- [Metrics](docs/METRICS.md): JSON report workflow patterns for calibration and long-term measurement.
 
 Use Maintainer Firewall when you want advisory triage help. Do not use it as an AI-detector, automatic rejection system, or replacement for maintainer judgment.
 
@@ -27,7 +35,7 @@ Each run produces a compact review-readiness report:
 - Optional labels
 - Optional passing checks, so good contributions do not look like a silent no-op
 
-The default mode is intentionally low-noise: it writes a comment only when there are findings. Workflow outputs are always set, so teams can build custom checks or dashboards without adding comments to clean issues and PRs. The Actions step summary also includes a setup table showing the active config path, dry-run state, comments, labels, annotations, JSON report, rule policy, configuration diagnostics, runtime diagnostics, AI status, and failure policy.
+The default mode is intentionally low-noise: it writes a comment only when there are findings. Workflow outputs are always set, so teams can build custom checks or dashboards without adding comments to clean issues and PRs. The Actions step summary also includes a setup table showing the active config path, dry-run state, comments, labels, annotations, JSON report, effective config report, rule policy, configuration diagnostics, runtime diagnostics, AI status, and failure policy.
 
 ## What it checks
 
@@ -103,6 +111,15 @@ Set `report-json-path` when another workflow step should consume a structured re
           report-json-path: maintainer-firewall-report.json
 ```
 
+Set `effective-config-json-path` during rollout when you want a redacted JSON snapshot of active thresholds, labels, rule policy, diagnostics, and enabled surfaces:
+
+```yaml
+      - uses: wangjiehu/maintainer-firewall@v0.6.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          effective-config-json-path: maintainer-firewall-effective-config.json
+```
+
 ### Permissions and Events
 
 Use the smallest permissions that match the rollout mode:
@@ -158,6 +175,7 @@ Set `emit-annotations: true` when you want findings to appear as native GitHub A
 | `emit-annotations` | No | `false` | Emit each finding as a GitHub Actions notice, warning, or error annotation. |
 | `write-step-summary` | No | `true` | Write the report to the GitHub Actions step summary. |
 | `report-json-path` | No |  | Workspace-relative path where a structured JSON report should be written for downstream steps. |
+| `effective-config-json-path` | No |  | Workspace-relative path where a redacted effective configuration report should be written. |
 
 ## Outputs
 
@@ -173,6 +191,7 @@ Maintainer Firewall sets outputs on every handled issue or pull request:
 | `skipped` | `true` when ignore rules skipped the subject. |
 | `skip-reason` | Explanation when `skipped` is true. |
 | `report-json-path` | Path to the structured JSON report when configured. |
+| `effective-config-json-path` | Path to the redacted effective configuration report when configured. |
 | `config-warnings-count` | Number of configuration diagnostics emitted while loading and validating config. |
 | `config-warnings` | JSON array of configuration diagnostics emitted while loading and validating config. |
 | `runtime-warnings-count` | Number of runtime diagnostics emitted while best-effort operations ran. |
@@ -180,157 +199,44 @@ Maintainer Firewall sets outputs on every handled issue or pull request:
 
 ## Configuration
 
-The `$schema` line enables editor descriptions, completion, enums, and default values. Config files can be partial: omit fields you do not need to change. Array values replace the default list rather than appending to it, so include the full list when customizing arrays.
+Config files are partial: omit fields you do not need to change. Array values replace the default list rather than appending to it, so include the full list when customizing arrays.
+
+Start with one of these presets:
+
+- [`examples/config.quiet.yml`](examples/config.quiet.yml): gentle rollout.
+- [`examples/config.strict.yml`](examples/config.strict.yml): stricter review-readiness checks.
+- [`examples/config.library.yml`](examples/config.library.yml): package or library maintainers.
+- [`examples/config.monorepo.yml`](examples/config.monorepo.yml): larger repositories with broader ownership.
+- [`examples/config.security-sensitive.yml`](examples/config.security-sensitive.yml): repositories with tighter security routing.
+
+Use the schema for editor completion and defaults:
 
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/wangjiehu/maintainer-firewall/main/schema/maintainer-firewall.schema.json
 version: 1
-
-issue:
-  enabled: true
-  minBodyCharacters: 120
-  requireReproduction: true
-  requireEnvironment: true
-  duplicateSearchLimit: 8
-  requiredSections: []
-
-pullRequest:
-  enabled: true
-  minBodyCharacters: 120
-  requireLinkedIssue: true
-  requireTestsForCodeChanges: true
-  largeChangeThreshold: 800
-  sensitivePaths:
-    - ".github/workflows/**"
-    - "package-lock.json"
-    - "pnpm-lock.yaml"
-    - "yarn.lock"
-    - "Cargo.lock"
-    - "go.sum"
-  testPathPatterns:
-    - "**/*.test.*"
-    - "**/*.spec.*"
-    - "**/__tests__/**"
-    - "tests/**"
-  requiredSections:
-    - "Test plan"
-
-repository:
-  guidancePaths:
-    - "CONTRIBUTING.md"
-    - ".github/CONTRIBUTING.md"
-    - "docs/CONTRIBUTING.md"
-    - "PULL_REQUEST_TEMPLATE.md"
-    - ".github/pull_request_template.md"
-    - ".github/PULL_REQUEST_TEMPLATE.md"
-    - ".github/PULL_REQUEST_TEMPLATE"
-    - ".github/ISSUE_TEMPLATE.md"
-    - ".github/ISSUE_TEMPLATE"
-  codeOwnersPaths:
-    - "CODEOWNERS"
-    - ".github/CODEOWNERS"
-    - "docs/CODEOWNERS"
-  maxGuidanceCharacters: 16000
-
-security:
-  enabled: true
-  reportPatterns:
-    - "\\bCVE-\\d{4}-\\d+\\b"
-    - "\\bvulnerab(?:ility|le)\\b"
-    - "\\bexploit\\b"
-    - "\\bRCE\\b"
-    - "\\bremote code execution\\b"
-    - "\\bXSS\\b"
-    - "\\bCSRF\\b"
-    - "\\bSSRF\\b"
-    - "\\bSQL injection\\b"
-    - "\\bpath traversal\\b"
-    - "\\bprototype pollution\\b"
-    - "\\bauth bypass\\b"
-    - "\\bcredential leak\\b"
-    - "\\btoken leak\\b"
-    - "\\bsecret leak\\b"
-  secretPatterns:
-    - "\\bgithub_pat_[A-Za-z0-9_]{20,}\\b"
-    - "\\bgh[pousr]_[A-Za-z0-9_]{36,}\\b"
-    - "\\bsk-[A-Za-z0-9_-]{20,}\\b"
-    - "\\bglpat-[A-Za-z0-9_-]{20,}\\b"
-    - "\\bnpm_[A-Za-z0-9]{20,}\\b"
-    - "\\bAIza[0-9A-Za-z\\-_]{35}\\b"
-    - "\\bAKIA[0-9A-Z]{16}\\b"
-    - "\\bxox[baprs]-[A-Za-z0-9-]{20,}\\b"
-    - "\\bSG\\.[A-Za-z0-9_-]{16,}\\.[A-Za-z0-9_-]{16,}\\b"
-    - "\\beyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\b"
-    - "\\b-----BEGIN (RSA |OPENSSH |EC )?PRIVATE KEY-----\\b"
-
-labels:
-  needsInfo: needs-info
-  needsTests: needs-tests
-  largeScope: large-scope
-  possibleDuplicate: possible-duplicate
-  securityReview: security-review
-  maintainerReview: maintainer-review
-
-labeling:
-  enabled: true
-  createMissing: true
-  removeStale: true
-
-comment:
-  enabled: true
-  updateExisting: true
-  header: Maintainer Firewall report
-  postWhen: findings
-  maxFindings: 8
-  includePassingChecks: true
-
-rules:
-  disabled: []
-  severityOverrides:
-    notice: []
-    warning: []
-    error: []
-
-ignore:
-  authors:
-    - dependabot[bot]
-    - renovate[bot]
-    - github-actions[bot]
-  labels:
-    - skip-firewall
-  titlePatterns:
-    - "^\\[skip firewall\\]"
-
-ai:
-  enabled: false
-  model: gpt-5-mini
-  maxInputCharacters: 12000
-  maxOutputTokens: 1200
-  timeoutMs: 15000
 ```
 
-See [`examples/config.quiet.yml`](examples/config.quiet.yml) for a gentle rollout preset and [`examples/config.strict.yml`](examples/config.strict.yml) for stricter projects.
-See [Rules](docs/RULES.md) for finding IDs, default severities, labels, suppression, severity overrides, and tuning knobs.
+See [Rules](docs/RULES.md) for finding IDs, default severities, labels, suppression, severity overrides, and tuning knobs. During rollout, set `effective-config-json-path` to inspect the redacted active configuration without reading source code.
 
 ## Local development
 
 ```bash
 npm install
-npm run check
+npm run ci
 npm run demo
-npm run bundle
-npm run verify:dist
+npm run evaluate
+npm run market:check
 ```
 
 The bundled action entry point is `dist/index.js`.
+Run `npm run bundle` when runtime source changes need updated bundled output.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the internal flow and safety model.
 
 ## Release
 
 ```bash
-npm run check
-npm run verify:dist
+npm run release:check
 git tag v0.6.0
 git push origin main v0.6.0
 ```

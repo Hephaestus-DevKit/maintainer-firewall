@@ -1,0 +1,33 @@
+{
+  "name": "missing-tests-pr",
+  "subject": {
+    "kind": "pull_request",
+    "number": 202,
+    "title": "Refactor auth middleware",
+    "body": "Fixes #77. This refactors auth middleware request parsing and token validation paths for the new runtime adapter.",
+    "author": "contributor",
+    "labels": [],
+    "htmlUrl": "https://github.com/example/repo/pull/202",
+    "draft": false,
+    "baseRef": "main",
+    "headRef": "auth-middleware",
+    "changedFiles": [
+      {
+        "filename": "src/auth.ts",
+        "status": "modified",
+        "additions": 90,
+        "deletions": 15,
+        "changes": 105
+      }
+    ]
+  },
+  "expectedFindings": [
+    "pr.body.too_short",
+    "pr.tests.missing"
+  ],
+  "unexpectedFindings": [
+    "pr.linked_issue.missing"
+  ],
+  "expectedOutcome": "needs_tests",
+  "expectedAiEligible": false
+}

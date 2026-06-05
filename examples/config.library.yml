@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/wangjiehu/maintainer-firewall/main/schema/maintainer-firewall.schema.json
+version: 1
+
+issue:
+  minBodyCharacters: 120
+  requireReproduction: true
+  requireEnvironment: true
+  requiredSections:
+    - Reproduction
+    - Environment
+
+pullRequest:
+  minBodyCharacters: 140
+  requireLinkedIssue: true
+  requireTestsForCodeChanges: true
+  largeChangeThreshold: 600
+  requiredSections:
+    - Summary
+    - Test plan
+
+comment:
+  postWhen: findings
+  includePassingChecks: true
+
+labeling:
+  enabled: false

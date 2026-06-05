@@ -1,0 +1,49 @@
+name: Maintainer Firewall Metrics
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: maintainer-firewall-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  firewall:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: wangjiehu/maintainer-firewall@v0.6.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          dry-run: true
+          report-json-path: reports/maintainer-firewall.json
+          effective-config-json-path: reports/maintainer-firewall-effective-config.json
+
+      - name: Print calibration metrics
+        shell: bash
+        run: |
+          node <<'JS'
+          const { readFileSync } = require("node:fs");
+          const report = JSON.parse(readFileSync("reports/maintainer-firewall.json", "utf8"));
+          const byId = Object.create(null);
+          for (const finding of report.findings || []) {
+            byId[finding.id] = (byId[finding.id] || 0) + 1;
+          }
+          console.log(JSON.stringify({
+            outcome: report.summary?.outcome || "skipped",
+            findings: report.findings?.length || 0,
+            byId
+          }));
+          JS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: maintainer-firewall-reports
+          path: reports/

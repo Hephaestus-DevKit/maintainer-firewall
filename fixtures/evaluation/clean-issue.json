@@ -1,0 +1,22 @@
+{
+  "name": "clean-issue",
+  "subject": {
+    "kind": "issue",
+    "number": 101,
+    "title": "Parser crashes on nested tuples",
+    "body": "Version 1.2.3 on Node 22. The parser crashes after running npm test with nested tuple input. Steps: create a tuple fixture, run npm test, expected a parsed tuple, actual runtime error.",
+    "author": "reporter",
+    "labels": [],
+    "htmlUrl": "https://github.com/example/repo/issues/101",
+    "duplicateCandidates": []
+  },
+  "expectedFindings": [],
+  "unexpectedFindings": [
+    "issue.body.too_short",
+    "issue.reproduction.missing",
+    "issue.environment.missing",
+    "content.secret.possible"
+  ],
+  "expectedOutcome": "ready",
+  "expectedAiEligible": false
+}

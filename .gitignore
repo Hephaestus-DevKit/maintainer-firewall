@@ -3,3 +3,6 @@ lib/
 .env
 .DS_Store
 coverage/
+*.tgz
+.idea/
+.vscode/

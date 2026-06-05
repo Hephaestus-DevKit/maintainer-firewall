@@ -11,6 +11,7 @@ export interface SetupSummaryOptions {
   failOnFindings: boolean;
   openAiApiKeyProvided: boolean;
   reportJsonPath: string;
+  effectiveConfigJsonPath?: string;
   subjectKind: Subject["kind"] | null;
 }
 
@@ -24,6 +25,7 @@ export function composeSetupSummary(options: SetupSummaryOptions): string {
     ["Labels", labelState(options.config, options.dryRun)],
     ["Annotations", options.emitAnnotations ? "Enabled" : "Disabled"],
     ["JSON report", options.reportJsonPath || "Disabled"],
+    ["Effective config", options.effectiveConfigJsonPath || "Disabled"],
     ["Rule policy", rulePolicyState(options.config)],
     ["Configuration warnings", options.configWarnings.length === 0 ? "None" : String(options.configWarnings.length)],
     ["Runtime warnings", runtimeWarnings.length === 0 ? "None" : String(runtimeWarnings.length)],
@@ -115,5 +117,8 @@ function rulePolicyState(config: FirewallConfig): string {
 }
 
 function escapeTable(value: string): string {
-  return value.replace(/\|/g, "\\|").replace(/\n/g, " ");
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\|/g, "\\|")
+    .replace(/\n/g, " ");
 }

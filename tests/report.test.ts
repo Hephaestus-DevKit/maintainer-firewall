@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultConfig } from "../src/config.js";
 import { createReportPayload } from "../src/report.js";
-import type { Finding, IssueSubject, ReviewSummary } from "../src/types.js";
+import type { Finding, IssueSubject, PullRequestSubject, ReviewSummary } from "../src/types.js";
 
 describe("createReportPayload", () => {
   it("omits body content and redacts configured secrets from titles", () => {
@@ -92,5 +92,77 @@ describe("createReportPayload", () => {
     expect(payload.diagnostics?.configWarnings).toEqual(["config.rules.disabled contains [redacted]"]);
     expect(payload.diagnostics?.runtimeWarnings).toEqual(["Could not apply labels: [redacted]"]);
     expect(JSON.stringify(payload)).not.toContain(secret);
+  });
+
+  it("redacts subject labels and changed file names in JSON reports", () => {
+    const secret = "sk-abc12345678901234567890";
+    const subject: PullRequestSubject = {
+      kind: "pull_request",
+      number: 2,
+      title: "Update parser",
+      body: "body",
+      author: "contributor",
+      labels: [`leaked-${secret}`],
+      htmlUrl: "https://github.com/example/repo/pull/2",
+      draft: false,
+      baseRef: "main",
+      headRef: "parser",
+      changedFiles: [
+        {
+          filename: `src/${secret}.ts`,
+          status: "modified",
+          additions: 1,
+          deletions: 0,
+          changes: 1
+        }
+      ]
+    };
+
+    const payload = createReportPayload(subject, [], null, defaultConfig);
+    const serialized = JSON.stringify(payload);
+
+    expect(serialized).not.toContain(secret);
+    expect(payload.subject?.labels).toEqual(["leaked-[redacted]"]);
+    expect(payload.subject?.changedFiles?.[0]?.filename).toBe("src/[redacted].ts");
+  });
+
+  it("keeps redacted finding references in JSON reports", () => {
+    const secret = "sk-abc12345678901234567890";
+    const subject: IssueSubject = {
+      kind: "issue",
+      number: 3,
+      title: "Bug report",
+      body: "body",
+      author: "reporter",
+      labels: [],
+      htmlUrl: "https://github.com/example/repo/issues/3",
+      duplicateCandidates: []
+    };
+    const payload = createReportPayload(subject, [
+      {
+        id: "issue.required_sections.missing",
+        severity: "warning",
+        title: "Required template sections are missing",
+        details: "Missing section.",
+        label: "needsInfo",
+        references: [
+          {
+            source: "config",
+            path: "issue.requiredSections",
+            label: `Section ${secret}`
+          }
+        ],
+        source: "rule"
+      }
+    ], null, defaultConfig);
+
+    expect(JSON.stringify(payload)).not.toContain(secret);
+    expect(payload.findings[0]?.references).toEqual([
+      {
+        source: "config",
+        path: "issue.requiredSections",
+        label: "Section [redacted]"
+      }
+    ]);
   });
 });

@@ -1,0 +1,11 @@
+# Critical release, workflow, and runtime surfaces should stay under maintainer review.
+/.github/workflows/ @wangjiehu
+/action.yml @wangjiehu
+/src/ @wangjiehu
+/dist/ @wangjiehu
+/schema/ @wangjiehu
+/package.json @wangjiehu
+/package-lock.json @wangjiehu
+/scripts/ @wangjiehu
+/docs/V1_CONTRACT.md @wangjiehu
+/docs/MARKETPLACE_READINESS.md @wangjiehu

@@ -33,7 +33,8 @@ const expectedInputs: Record<string, Pick<ActionField, "required" | "default">> 
   "fail-on-findings": { required: false, default: "false" },
   "emit-annotations": { required: false, default: "false" },
   "write-step-summary": { required: false, default: "true" },
-  "report-json-path": { required: false }
+  "report-json-path": { required: false },
+  "effective-config-json-path": { required: false }
 };
 
 const expectedOutputs = [
@@ -45,6 +46,7 @@ const expectedOutputs = [
   "skipped",
   "skip-reason",
   "report-json-path",
+  "effective-config-json-path",
   "config-warnings-count",
   "config-warnings",
   "runtime-warnings-count",

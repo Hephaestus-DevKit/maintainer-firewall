@@ -29,6 +29,7 @@ body:
         - GitHub labels
         - Configuration
         - Documentation
+        - Maintenance or release workflow
     validations:
       required: true
   - type: textarea
@@ -36,3 +37,5 @@ body:
     attributes:
       label: Noise and safety tradeoffs
       description: How could this create false positives, contributor friction, or security risk?
+    validations:
+      required: true

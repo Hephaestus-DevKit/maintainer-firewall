@@ -2,7 +2,7 @@
 
 Maintainer Firewall findings have stable IDs. Use these IDs to discuss reports, inspect JSON output, tune configuration, and connect comments, annotations, and step summaries.
 
-AI-assisted findings also include IDs. They use model-provided IDs when valid, or fallback IDs such as `ai.finding.1`.
+AI-assisted findings also include IDs. Model-provided IDs are normalized into stable `ai.*` policy IDs when possible, with fallback IDs such as `ai.finding.1`.
 
 ## Deterministic Rules
 
@@ -18,7 +18,7 @@ AI-assisted findings also include IDs. They use model-provided IDs when valid, o
 | `pr.required_sections.missing` | Pull requests | warning | `needsInfo` | Required pull request template headings are missing. | `pullRequest.requiredSections` |
 | `pr.linked_issue.missing` | Pull requests | notice | `needsInfo` | Pull request body does not link or close an issue. | `pullRequest.requireLinkedIssue` |
 | `pr.scope.large` | Pull requests | warning | `largeScope` | Changed line count exceeds `pullRequest.largeChangeThreshold`. | `pullRequest.largeChangeThreshold` |
-| `pr.tests.missing` | Pull requests | warning | `needsTests` | Code files changed but no test files were detected. | `pullRequest.requireTestsForCodeChanges`, `pullRequest.testPathPatterns` |
+| `pr.tests.missing` | Pull requests | warning | `needsTests` | Code files changed but no non-deleted test files were detected. | `pullRequest.requireTestsForCodeChanges`, `pullRequest.testPathPatterns` |
 | `pr.sensitive_paths.changed` | Pull requests | notice | `securityReview` | Changed files match configured sensitive path globs. | `pullRequest.sensitivePaths` |
 | `content.secret.possible` | Issues and PRs | error | `securityReview` | Title or body matches a configured secret-like pattern. AI analysis is skipped when this fires. | `security.secretPatterns` |
 | `content.security_report.possible` | Issues and PRs | warning for issues, notice for PRs | `securityReview` | Text mentions security-sensitive language such as CVEs, exploits, credential leaks, or vulnerability terms. | `security.reportPatterns` |
@@ -103,6 +103,8 @@ Finding IDs appear in:
 
 Finding IDs do not change contributor quality scoring. They are identifiers for maintainers to tune and debug the action.
 
+Structured JSON findings may include `references` when a deterministic finding is tied to a specific configured requirement. For example, missing required template sections reference `issue.requiredSections` or `pullRequest.requiredSections` without adding extra noise to contributor-facing comments.
+
 ## Tuning Patterns
 
 Gentler issue intake:
@@ -151,3 +153,5 @@ security:
 ```
 
 Prefer tuning `security.reportPatterns` and `security.secretPatterns` instead of disabling security checks completely.
+
+Configured regular expressions are compiled through a shared cache. Invalid or potentially unsafe patterns are ignored and reported through configuration diagnostics, because these patterns run against untrusted issue and pull request text.

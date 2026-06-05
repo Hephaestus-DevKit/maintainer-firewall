@@ -1,0 +1,29 @@
+{
+  "name": "required-section-pr",
+  "config": {
+    "pullRequest": {
+      "requiredSections": ["Test plan"]
+    }
+  },
+  "subject": {
+    "kind": "pull_request",
+    "number": 203,
+    "title": "Improve renderer",
+    "body": "Fixes #88. This improves renderer behavior for nested emphasis markers and documents the migration behavior in the changelog.",
+    "author": "contributor",
+    "labels": [],
+    "htmlUrl": "https://github.com/example/repo/pull/203",
+    "draft": false,
+    "baseRef": "main",
+    "headRef": "renderer",
+    "changedFiles": []
+  },
+  "expectedFindings": [
+    "pr.required_sections.missing"
+  ],
+  "unexpectedFindings": [
+    "pr.linked_issue.missing"
+  ],
+  "expectedOutcome": "needs_info",
+  "expectedAiEligible": false
+}

@@ -6,13 +6,14 @@ Thanks for helping improve Maintainer Firewall. The project is intentionally mai
 
 ```bash
 npm install
-npm run check
+npm run ci
 npm run demo
-npm run bundle
-npm run verify:dist
 ```
 
 Commit source changes together with the bundled `dist/` output.
+Run `npm run bundle` when runtime source changes need updated bundled output.
+Use `npm run release:check` before tagging a release.
+See [docs/MAINTENANCE.md](docs/MAINTENANCE.md) for review, release, dependency, and diagnostic maintenance gates.
 
 ## Pull Request Expectations
 
@@ -21,6 +22,7 @@ Commit source changes together with the bundled `dist/` output.
 - Avoid rules that try to detect whether text was AI-generated.
 - Do not log or echo matched secret values.
 - Prefer advisory findings over hard failures unless the risk is clear.
+- Update public docs, examples, action metadata, and tests together when an input, output, finding ID, or report surface changes.
 
 ## Product Principles
 

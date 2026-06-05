@@ -3,6 +3,7 @@ import {
   composeReport,
   composeSkippedReport,
   shouldPostComment,
+  shouldFail,
   shouldPostSkippedComment,
   shouldRefreshExistingCleanReport
 } from "../src/comment.js";
@@ -101,7 +102,7 @@ describe("composeReport", () => {
   it("escapes finding IDs inside the details table", () => {
     const findings: Finding[] = [
       {
-        id: "ai.bad`id|value",
+        id: "ai.bad\\id`|value",
         severity: "notice",
         title: "AI finding",
         details: "Needs a maintainer look.",
@@ -112,7 +113,7 @@ describe("composeReport", () => {
 
     const report = composeReport(subject, findings, defaultConfig, summary);
 
-    expect(report).toContain("ai<br>`ai.bad'id\\|value`");
+    expect(report).toContain("ai<br>`ai.bad\\\\id'\\|value`");
   });
 });
 
@@ -122,6 +123,14 @@ describe("composeSkippedReport", () => {
 
     expect(report).toContain("<!-- maintainer-firewall:report -->");
     expect(report).toContain("Skipped issue #9: label skip-firewall is ignored.");
+  });
+
+  it("redacts and compacts skipped reasons", () => {
+    const secret = "sk-abc12345678901234567890";
+    const report = composeSkippedReport(subject, `label leaked-${secret}\nmatched`, defaultConfig);
+
+    expect(report).not.toContain(secret);
+    expect(report).toContain("label leaked-[redacted] matched");
   });
 });
 
@@ -165,6 +174,32 @@ describe("shouldPostComment", () => {
         source: "rule"
       }
     ])).toBe(false);
+  });
+});
+
+describe("shouldFail", () => {
+  it("fails only on warning or error findings", () => {
+    expect(shouldFail([])).toBe(false);
+    expect(shouldFail([
+      {
+        id: "issue.environment.missing",
+        severity: "notice",
+        title: "Environment details may be missing",
+        details: "Missing environment.",
+        label: "needsInfo",
+        source: "rule"
+      }
+    ])).toBe(false);
+    expect(shouldFail([
+      {
+        id: "issue.body.too_short",
+        severity: "warning",
+        title: "Issue body is short",
+        details: "Missing context.",
+        label: "needsInfo",
+        source: "rule"
+      }
+    ])).toBe(true);
   });
 });
 

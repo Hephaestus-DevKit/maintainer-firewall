@@ -9,6 +9,11 @@ const OUTCOME_LABELS: Record<Outcome, string> = {
   needs_maintainer_review: "Needs maintainer review",
   blocked: "Blocked"
 };
+const SCORE_PENALTY_BY_SEVERITY: Record<Finding["severity"], number> = {
+  error: 35,
+  warning: 18,
+  notice: 7
+};
 
 export function createReviewSummary(
   subject: Subject,
@@ -36,15 +41,7 @@ export function outcomeLabel(outcome: Outcome): string {
 
 function scoreFindings(findings: Finding[]): number {
   const penalty = findings.reduce((sum, finding) => {
-    if (finding.severity === "error") {
-      return sum + 35;
-    }
-
-    if (finding.severity === "warning") {
-      return sum + 18;
-    }
-
-    return sum + 7;
+    return sum + SCORE_PENALTY_BY_SEVERITY[finding.severity];
   }, 0);
 
   return Math.max(0, 100 - penalty);
@@ -204,24 +201,40 @@ function passedChecksForSubject(subject: Subject, findings: Finding[], config: F
 
   if (subject.kind === "issue") {
     return [
-      !ids.has("issue.body.too_short") ? "Issue body has enough detail" : undefined,
+      config.issue.minBodyCharacters > 0 && !ids.has("issue.body.too_short")
+        ? "Issue body has enough detail"
+        : undefined,
       config.issue.requiredSections.length > 0 && !ids.has("issue.required_sections.missing")
         ? "Required issue sections are present"
         : undefined,
-      !ids.has("issue.reproduction.missing") ? "Reproduction signal found" : undefined,
-      !ids.has("issue.environment.missing") ? "Environment signal found" : undefined,
-      !ids.has("issue.duplicate.possible") ? "No likely duplicate found" : undefined
+      config.issue.requireReproduction && !ids.has("issue.reproduction.missing")
+        ? "Reproduction signal found"
+        : undefined,
+      config.issue.requireEnvironment && !ids.has("issue.environment.missing")
+        ? "Environment signal found"
+        : undefined,
+      config.issue.duplicateSearchLimit > 0 && !ids.has("issue.duplicate.possible")
+        ? "No likely duplicate found"
+        : undefined
     ].filter((value): value is string => Boolean(value));
   }
 
   return [
-    !ids.has("pr.body.too_short") ? "PR description has enough detail" : undefined,
+    config.pullRequest.minBodyCharacters > 0 && !ids.has("pr.body.too_short")
+      ? "PR description has enough detail"
+      : undefined,
     config.pullRequest.requiredSections.length > 0 && !ids.has("pr.required_sections.missing")
       ? "Required PR sections are present"
       : undefined,
-    !ids.has("pr.linked_issue.missing") ? "Issue link or reference found" : undefined,
-    !ids.has("pr.tests.missing") ? "Test signal found or no code change detected" : undefined,
+    config.pullRequest.requireLinkedIssue && !ids.has("pr.linked_issue.missing")
+      ? "Issue link or reference found"
+      : undefined,
+    config.pullRequest.requireTestsForCodeChanges && !ids.has("pr.tests.missing")
+      ? "Test signal found or no code change detected"
+      : undefined,
     !ids.has("pr.scope.large") ? "Change size is within threshold" : undefined,
-    !ids.has("pr.sensitive_paths.changed") ? "No configured sensitive paths changed" : undefined
+    config.pullRequest.sensitivePaths.length > 0 && !ids.has("pr.sensitive_paths.changed")
+      ? "No configured sensitive paths changed"
+      : undefined
   ].filter((value): value is string => Boolean(value));
 }

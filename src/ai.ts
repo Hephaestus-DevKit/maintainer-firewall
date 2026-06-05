@@ -116,7 +116,10 @@ export async function analyzeWithAi(
     });
 
     if (!response.ok) {
-      warningSink(`OpenAI analysis failed with HTTP ${response.status}: ${await response.text()}`);
+      const detail = sanitizeAiErrorDetail(await response.text(), config.security.secretPatterns);
+      warningSink(detail
+        ? `OpenAI analysis failed with HTTP ${response.status}: ${detail}`
+        : `OpenAI analysis failed with HTTP ${response.status}.`);
       return [];
     }
 
@@ -136,9 +139,17 @@ export async function analyzeWithAi(
       .map((finding, index) => normalizeAiFinding(finding, index))
       .filter((finding): finding is Finding => Boolean(finding));
   } catch (error) {
-    warningSink(`OpenAI analysis failed: ${error instanceof Error ? error.message : String(error)}`);
+    warningSink(`OpenAI analysis failed: ${sanitizeAiErrorDetail(getErrorMessage(error), config.security.secretPatterns)}`);
     return [];
   }
+}
+
+function sanitizeAiErrorDetail(value: string, secretPatterns: string[]): string {
+  return truncate(redactByPatterns(value, secretPatterns).replace(/\s+/g, " ").trim(), 300);
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function redactSubject(subject: Subject, secretPatterns: string[]): Subject {
@@ -216,7 +227,7 @@ function normalizeAiFinding(value: unknown, index: number): Finding | null {
   }
 
   return {
-    id: normalizeAiText(record.id ?? `ai.finding.${index + 1}`, AI_ID_MAX_CHARACTERS),
+    id: normalizeAiId(record.id, index),
     severity: severity as Finding["severity"],
     title,
     details,
@@ -224,6 +235,25 @@ function normalizeAiFinding(value: unknown, index: number): Finding | null {
     label,
     source: "ai"
   };
+}
+
+function normalizeAiId(value: unknown, index: number): string {
+  const fallback = `ai.finding.${index + 1}`;
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const compacted = normalizeAiText(value, AI_ID_MAX_CHARACTERS)
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, ".")
+    .replace(/\.+/g, ".")
+    .replace(/^[._-]+|[._-]+$/g, "");
+  const withPrefix = compacted
+    ? compacted.startsWith("ai.") ? compacted : `ai.${compacted}`
+    : fallback;
+  const truncated = withPrefix.slice(0, AI_ID_MAX_CHARACTERS);
+
+  return truncated.replace(/[._-]+$/g, "") || fallback;
 }
 
 function normalizeAiText(value: unknown, maxCharacters: number): string {

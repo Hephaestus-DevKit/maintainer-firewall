@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/wangjiehu/maintainer-firewall/main/schema/maintainer-firewall.schema.json
+version: 1
+
+issue:
+  minBodyCharacters: 160
+  requireReproduction: true
+  requireEnvironment: true
+
+pullRequest:
+  minBodyCharacters: 180
+  requireLinkedIssue: true
+  requireTestsForCodeChanges: true
+  largeChangeThreshold: 400
+  sensitivePaths:
+    - ".github/workflows/**"
+    - "package-lock.json"
+    - "pnpm-lock.yaml"
+    - "yarn.lock"
+    - "Cargo.lock"
+    - "go.sum"
+    - "src/security/**"
+    - "src/auth/**"
+    - "config/**"
+
+rules:
+  severityOverrides:
+    notice: []
+    warning:
+      - pr.sensitive_paths.changed
+    error:
+      - content.security_report.possible
+
+comment:
+  postWhen: findings
+  includePassingChecks: true
+
+labeling:
+  enabled: true
+  removeStale: true

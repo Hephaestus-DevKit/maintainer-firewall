@@ -1,0 +1,21 @@
+{
+  "name": "security-sensitive-issue",
+  "subject": {
+    "kind": "issue",
+    "number": 103,
+    "title": "Possible XSS vulnerability in markdown preview",
+    "body": "Version 1.2.3 appears affected. I can reproduce with a markdown preview payload and can share exact steps privately. This may allow XSS in the rendered preview.",
+    "author": "researcher",
+    "labels": [],
+    "htmlUrl": "https://github.com/example/repo/issues/103",
+    "duplicateCandidates": []
+  },
+  "expectedFindings": [
+    "content.security_report.possible"
+  ],
+  "unexpectedFindings": [
+    "content.secret.possible"
+  ],
+  "expectedOutcome": "needs_maintainer_review",
+  "expectedAiEligible": false
+}

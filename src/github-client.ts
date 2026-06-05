@@ -112,7 +112,9 @@ export function getConfigRef(context: GitHubContext): string | undefined {
     return payload.pull_request.base?.sha;
   }
 
-  return context.ref?.replace("refs/heads/", "");
+  return context.ref
+    ?.replace("refs/heads/", "")
+    .replace("refs/tags/", "");
 }
 
 export async function applyLabels(
@@ -224,14 +226,25 @@ async function findReportComment(
   repo: string,
   issueNumber: number
 ): Promise<{ id: number; body?: string | null } | undefined> {
-  const comments = await octokit.paginate(octokit.rest.issues.listComments, {
-    owner,
-    repo,
-    issue_number: issueNumber,
-    per_page: 100
-  });
+  for (let page = 1; ; page += 1) {
+    const response = await octokit.rest.issues.listComments({
+      owner,
+      repo,
+      issue_number: issueNumber,
+      per_page: 100,
+      page
+    });
+    const comments = response.data;
+    const reportComment = comments.find((comment) => comment.body?.includes(REPORT_MARKER));
 
-  return comments.find((comment) => comment.body?.includes(REPORT_MARKER));
+    if (reportComment) {
+      return reportComment;
+    }
+
+    if (comments.length < 100) {
+      return undefined;
+    }
+  }
 }
 
 async function findDuplicateIssues(
@@ -247,10 +260,11 @@ async function findDuplicateIssues(
     return [];
   }
 
-  const terms = tokenize(title).slice(0, 6).join(" ");
-  if (!terms) {
+  const tokens = tokenize(title).slice(0, 6);
+  if (tokens.length < 2) {
     return [];
   }
+  const terms = tokens.join(" ");
 
   try {
     const response = await octokit.rest.search.issuesAndPullRequests({

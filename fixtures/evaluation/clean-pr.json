@@ -1,0 +1,39 @@
+{
+  "name": "clean-pr",
+  "subject": {
+    "kind": "pull_request",
+    "number": 201,
+    "title": "Fix parser cache invalidation",
+    "body": "Fixes #41. This updates parser cache invalidation for nested tuple inputs. Test plan: npm test covers the regression and existing parser fixtures.",
+    "author": "contributor",
+    "labels": [],
+    "htmlUrl": "https://github.com/example/repo/pull/201",
+    "draft": false,
+    "baseRef": "main",
+    "headRef": "parser-cache",
+    "changedFiles": [
+      {
+        "filename": "src/parser.ts",
+        "status": "modified",
+        "additions": 24,
+        "deletions": 5,
+        "changes": 29
+      },
+      {
+        "filename": "src/parser.test.ts",
+        "status": "modified",
+        "additions": 18,
+        "deletions": 0,
+        "changes": 18
+      }
+    ]
+  },
+  "expectedFindings": [],
+  "unexpectedFindings": [
+    "pr.tests.missing",
+    "pr.linked_issue.missing",
+    "pr.body.too_short"
+  ],
+  "expectedOutcome": "ready",
+  "expectedAiEligible": false
+}
