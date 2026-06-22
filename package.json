@@ -38,16 +38,16 @@
     "issue-triage",
     "pull-request-review"
   ],
-  "author": "wangjiehu",
+  "author": "occ-tools",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wangjiehu/maintainer-firewall.git"
+    "url": "git+https://github.com/occ-tools/maintainer-firewall.git"
   },
   "bugs": {
-    "url": "https://github.com/wangjiehu/maintainer-firewall/issues"
+    "url": "https://github.com/occ-tools/maintainer-firewall/issues"
   },
-  "homepage": "https://github.com/wangjiehu/maintainer-firewall#readme",
+  "homepage": "https://github.com/occ-tools/maintainer-firewall#readme",
   "dependencies": {
     "@actions/core": "^3.0.1",
     "@actions/github": "^9.1.1",

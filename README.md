@@ -1,7 +1,7 @@
 # 🛡️ Maintainer Firewall
 
-[![GitHub Release](https://img.shields.io/github/v/release/wangjiehu/maintainer-firewall?color=blue&logo=github)](https://github.com/wangjiehu/maintainer-firewall/releases)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/wangjiehu/maintainer-firewall/check.yml?branch=main&logo=github)](https://github.com/wangjiehu/maintainer-firewall/actions)
+[![GitHub Release](https://img.shields.io/github/v/release/occ-tools/maintainer-firewall?color=blue&logo=github)](https://github.com/occ-tools/maintainer-firewall/releases)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/occ-tools/maintainer-firewall/check.yml?branch=main&logo=github)](https://github.com/occ-tools/maintainer-firewall/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Compatibility](https://img.shields.io/badge/node-%3E%3D20-green?logo=node.js)](https://nodejs.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://makeapullrequest.com)
@@ -103,7 +103,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run Maintainer Firewall
-        uses: wangjiehu/maintainer-firewall@v0.7.1
+        uses: occ-tools/maintainer-firewall@v0.7.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           dry-run: true
@@ -114,7 +114,7 @@ jobs:
 Add a `.maintainer-firewall.yml` to the root of your repository to override defaults, suppress specific checks, or enable AI:
 
 ```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/wangjiehu/maintainer-firewall/main/schema/maintainer-firewall.schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/occ-tools/maintainer-firewall/main/schema/maintainer-firewall.schema.json
 version: 1
 
 rules:
@@ -146,7 +146,7 @@ labeling:
 | `emit-annotations` | No | `false` | Emit findings as native GitHub workflow warnings and errors. |
 | `write-step-summary` | No | `true` | Write the summary report to the GitHub Actions job run summary. |
 | `report-json-path` | No | | Path in the workspace to output a structured JSON report. |
-| `effective-config-json-path`| No | | Path in the workspace to output the redacted, active config snapshot. |
+| `effective-config-json-path` | No | | Path in the workspace to output the redacted, active config snapshot. |
 
 ### Outputs
 
@@ -158,8 +158,13 @@ labeling:
 | `labels` | string | Comma-separated list of suggested labels. |
 | `routing-hints` | string | JSON array of CODEOWNERS-derived routing targets. |
 | `skipped` | boolean | `true` if the issue/PR met suppression rules and was skipped. |
+| `skip-reason` | string | Reason the subject was skipped, when applicable. |
+| `report-json-path` | string | Path to the structured JSON report when configured. |
+| `effective-config-json-path` | string | Path to the redacted effective configuration report when configured. |
 | `config-warnings-count` | number | Count of configuration validation warnings. |
+| `config-warnings` | string | JSON array of configuration diagnostics emitted. |
 | `runtime-warnings-count` | number | Count of runtime diagnostics warnings. |
+| `runtime-warnings` | string | JSON array of runtime diagnostics emitted. |
 
 ---
 

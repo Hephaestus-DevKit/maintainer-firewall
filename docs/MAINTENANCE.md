@@ -63,7 +63,7 @@ If release automation fails, fix the underlying issue and rerun from the same ta
 To verify a downloaded release asset:
 
 ```bash
-gh attestation verify maintainer-firewall-<version>.tgz -R wangjiehu/maintainer-firewall
+gh attestation verify maintainer-firewall-<version>.tgz -R occ-tools/maintainer-firewall
 ```
 
 ## Dependency Maintenance

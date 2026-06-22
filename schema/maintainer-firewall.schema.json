@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/wangjiehu/maintainer-firewall/main/schema/maintainer-firewall.schema.json",
+  "$id": "https://raw.githubusercontent.com/occ-tools/maintainer-firewall/main/schema/maintainer-firewall.schema.json",
   "title": "Maintainer Firewall Configuration",
   "description": "Configuration for Maintainer Firewall. Partial configs are supported; omitted fields use the documented defaults.",
   "type": "object",

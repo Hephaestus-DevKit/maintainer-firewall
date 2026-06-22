@@ -19,7 +19,7 @@ jobs:
   firewall:
     runs-on: ubuntu-latest
     steps:
-      - uses: wangjiehu/maintainer-firewall@main
+      - uses: occ-tools/maintainer-firewall@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           report-json-path: maintainer-firewall-report.json

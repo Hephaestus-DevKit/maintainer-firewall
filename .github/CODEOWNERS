@@ -1,11 +1,11 @@
 # Critical release, workflow, and runtime surfaces should stay under maintainer review.
-/.github/workflows/ @wangjiehu
-/action.yml @wangjiehu
-/src/ @wangjiehu
-/dist/ @wangjiehu
-/schema/ @wangjiehu
-/package.json @wangjiehu
-/package-lock.json @wangjiehu
-/scripts/ @wangjiehu
-/docs/V1_CONTRACT.md @wangjiehu
-/docs/MARKETPLACE_READINESS.md @wangjiehu
+/.github/workflows/ @occ-tools
+/action.yml @occ-tools
+/src/ @occ-tools
+/dist/ @occ-tools
+/schema/ @occ-tools
+/package.json @occ-tools
+/package-lock.json @occ-tools
+/scripts/ @occ-tools
+/docs/V1_CONTRACT.md @occ-tools
+/docs/MARKETPLACE_READINESS.md @occ-tools

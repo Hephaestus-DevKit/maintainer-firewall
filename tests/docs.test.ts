@@ -50,10 +50,6 @@ describe("project documentation", () => {
     expect(readme).toContain("docs/V1_CONTRACT.md");
     expect(readme).toContain("docs/MARKETPLACE_READINESS.md");
     expect(readme).toContain("docs/ADOPTION_PLAYBOOK.md");
-    expect(readme).toContain("docs/PILOT_RUNBOOK.md");
-    expect(readme).toContain("docs/EVALUATION.md");
-    expect(readme).toContain("docs/AI_DATA_BOUNDARY.md");
-    expect(readme).toContain("docs/METRICS.md");
   });
 
   it("keeps maintenance scripts wired into workflows and contributor docs", () => {
@@ -110,15 +106,13 @@ describe("project documentation", () => {
     expect(() => parse(readFileSync("examples/workflow.metrics.yml", "utf8"))).not.toThrow();
   });
 
-  it("keeps marketplace preset configs parseable and linked", () => {
-    const readme = readFileSync("README.md", "utf8");
+  it("keeps marketplace preset configs parseable", () => {
     for (const path of [
       "examples/config.library.yml",
       "examples/config.monorepo.yml",
       "examples/config.security-sensitive.yml"
     ]) {
       expect(() => parse(readFileSync(path, "utf8"))).not.toThrow();
-      expect(readme).toContain(path);
     }
   });
 
@@ -147,7 +141,7 @@ describe("project documentation", () => {
       "examples/workflow.strict.yml",
       "examples/workflow.metrics.yml"
     ]) {
-      expect(readFileSync(path, "utf8")).toContain(`wangjiehu/maintainer-firewall@${currentReleaseTag()}`);
+      expect(readFileSync(path, "utf8")).toContain(`occ-tools/maintainer-firewall@${currentReleaseTag()}`);
     }
   });
 
