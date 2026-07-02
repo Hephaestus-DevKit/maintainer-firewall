@@ -141,7 +141,7 @@ describe("project documentation", () => {
       "examples/workflow.strict.yml",
       "examples/workflow.metrics.yml"
     ]) {
-      expect(readFileSync(path, "utf8")).toContain(`occ-tools/maintainer-firewall@${currentReleaseTag()}`);
+      expect(readFileSync(path, "utf8")).toContain(`Hephaestus-DevKit/maintainer-firewall@${currentReleaseTag()}`);
     }
   });
 

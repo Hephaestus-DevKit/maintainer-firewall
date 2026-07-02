@@ -44,7 +44,7 @@ jobs:
   firewall:
     runs-on: ubuntu-latest
     steps:
-      - uses: occ-tools/maintainer-firewall@v0.7.1
+      - uses: Hephaestus-DevKit/maintainer-firewall@v0.7.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           dry-run: true
@@ -82,7 +82,7 @@ Maintainer Firewall works without a config file. Add `.maintainer-firewall.yml` 
 Use the schema line for editor completion:
 
 ```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/occ-tools/maintainer-firewall/main/schema/maintainer-firewall.schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Hephaestus-DevKit/maintainer-firewall/main/schema/maintainer-firewall.schema.json
 version: 1
 ```
 

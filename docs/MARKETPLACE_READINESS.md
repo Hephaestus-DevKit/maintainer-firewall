@@ -51,7 +51,7 @@ Additional requirements before a direct GitHub Marketplace listing:
 Suggested Scorecard command:
 
 ```bash
-scorecard --repo=github.com/occ-tools/maintainer-firewall
+scorecard --repo=github.com/Hephaestus-DevKit/maintainer-firewall
 ```
 
 If the CLI is unavailable locally, run the GitHub Action version and publish the score in release notes.

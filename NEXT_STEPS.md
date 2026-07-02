@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 最新可安装版本：`occ-tools/maintainer-firewall@v0.7.1`
+- 最新可安装版本：`Hephaestus-DevKit/maintainer-firewall@v0.7.1`
 - 推荐首次安装模式：audit mode，只读权限，先不发评论、不打标签。
 - 本地主验收命令：`npm run market:check`
 - 当前 release asset：
@@ -90,7 +90,7 @@ jobs:
   firewall:
     runs-on: ubuntu-latest
     steps:
-      - uses: occ-tools/maintainer-firewall@v0.7.1
+      - uses: Hephaestus-DevKit/maintainer-firewall@v0.7.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           dry-run: true
@@ -128,7 +128,7 @@ gh run list --limit 10
 下载 release asset 后验证 attestation：
 
 ```bash
-gh attestation verify maintainer-firewall-X.Y.Z.tgz -R occ-tools/maintainer-firewall
+gh attestation verify maintainer-firewall-X.Y.Z.tgz -R Hephaestus-DevKit/maintainer-firewall
 ```
 
 ## Marketplace 决策
@@ -160,7 +160,7 @@ gh attestation verify maintainer-firewall-X.Y.Z.tgz -R occ-tools/maintainer-fire
 - 不要为了 Scorecard Packaging 分数强行发布 npm 包。
 - 不要为了 Marketplace 删除主仓库 workflow。
 - 不要在单维护者阶段强制 PR approval。
-- 不要把仓库自测 workflow 里的 `occ-tools/maintainer-firewall@main` 固定成 SHA。
+- 不要把仓库自测 workflow 里的 `Hephaestus-DevKit/maintainer-firewall@main` 固定成 SHA。
 - 不要把这个产品包装成 AI 检测器。
 
 ## 下一轮最有价值任务

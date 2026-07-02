@@ -83,7 +83,7 @@ Common examples:
 Use the schema line for editor guidance:
 
 ```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/occ-tools/maintainer-firewall/main/schema/maintainer-firewall.schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Hephaestus-DevKit/maintainer-firewall/main/schema/maintainer-firewall.schema.json
 version: 1
 ```
 

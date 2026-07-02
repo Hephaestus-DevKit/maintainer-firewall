@@ -42,12 +42,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/occ-tools/maintainer-firewall.git"
+    "url": "git+https://github.com/Hephaestus-DevKit/maintainer-firewall.git"
   },
   "bugs": {
-    "url": "https://github.com/occ-tools/maintainer-firewall/issues"
+    "url": "https://github.com/Hephaestus-DevKit/maintainer-firewall/issues"
   },
-  "homepage": "https://github.com/occ-tools/maintainer-firewall#readme",
+  "homepage": "https://github.com/Hephaestus-DevKit/maintainer-firewall#readme",
   "dependencies": {
     "@actions/core": "^3.0.1",
     "@actions/github": "^9.1.1",

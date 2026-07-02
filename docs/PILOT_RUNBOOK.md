@@ -33,7 +33,7 @@ jobs:
   firewall:
     runs-on: ubuntu-latest
     steps:
-      - uses: occ-tools/maintainer-firewall@v0.7.1
+      - uses: Hephaestus-DevKit/maintainer-firewall@v0.7.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           dry-run: true
