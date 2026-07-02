@@ -92,7 +92,7 @@ describe("composeSetupSummary", () => {
     expect(summary).toContain("| Labels | Disabled |");
     expect(summary).toContain("| JSON report | Disabled |");
     expect(summary).toContain("| Rule policy | Default |");
-    expect(summary).toContain("| AI analysis | Enabled; model=gpt-5-mini; timeoutMs=15000 |");
+    expect(summary).toContain("| AI analysis | Enabled; model=gpt-4o-mini; timeoutMs=15000 |");
     expect(summary).toContain("| Failure policy | Fail on warning or error findings |");
     expect(summary).not.toContain("### Configuration warnings");
     expect(summary).not.toContain("### Runtime warnings");

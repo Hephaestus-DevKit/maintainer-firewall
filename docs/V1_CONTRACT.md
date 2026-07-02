@@ -121,7 +121,7 @@ The effective config report is versioned and redacted. It is intended for rollou
     "ai": {
       "enabled": false,
       "apiKeyProvided": false,
-      "model": "gpt-5-mini",
+      "model": "gpt-4o-mini",
       "timeoutMs": 15000,
       "maxInputCharacters": 12000,
       "maxOutputTokens": 1200

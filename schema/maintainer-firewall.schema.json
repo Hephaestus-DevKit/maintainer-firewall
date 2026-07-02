@@ -397,7 +397,7 @@
         "model": {
           "description": "OpenAI model used for semantic review when AI is enabled.",
           "type": "string",
-          "default": "gpt-5-mini"
+          "default": "gpt-4o-mini"
         },
         "maxInputCharacters": {
           "description": "Maximum redacted subject and guidance text sent to the model.",

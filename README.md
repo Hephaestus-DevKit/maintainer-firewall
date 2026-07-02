@@ -1,7 +1,7 @@
 # 🛡️ Maintainer Firewall
 
 [![GitHub Release](https://img.shields.io/github/v/release/Hephaestus-DevKit/maintainer-firewall?color=blue&logo=github)](https://github.com/Hephaestus-DevKit/maintainer-firewall/releases)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/Hephaestus-DevKit/maintainer-firewall/check.yml?branch=main&logo=github)](https://github.com/Hephaestus-DevKit/maintainer-firewall/actions)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/Hephaestus-DevKit/maintainer-firewall/test.yml?branch=main&logo=github)](https://github.com/Hephaestus-DevKit/maintainer-firewall/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Compatibility](https://img.shields.io/badge/node-%3E%3D20-green?logo=node.js)](https://nodejs.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://makeapullrequest.com)

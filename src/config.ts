@@ -155,7 +155,7 @@ export const defaultConfig: FirewallConfig = {
   },
   ai: {
     enabled: false,
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     maxInputCharacters: 12000,
     maxOutputTokens: 1200,
     timeoutMs: 15000
