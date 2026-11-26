@@ -1,5 +1,5 @@
 import * as core from "@actions/core";
-import { Minimatch } from "minimatch";
+import { escape as escapeGlob, Minimatch } from "minimatch";
 import type * as github from "@actions/github";
 import { getErrorMessage, getErrorStatus } from "./errors.js";
 import type { FirewallConfig, PullRequestSubject, RoutingHint } from "./types.js";
@@ -131,7 +131,11 @@ function compileCodeOwnerPattern(pattern: string): Minimatch[] {
   }
 
   const rooted = pattern.startsWith("/") || path.includes("/");
-  const glob = `${rooted ? "" : "**/"}${path.replace(/[\[\]]/g, "\\$&")}`;
+  // Preserve escaped pairs. Bare brackets in CODEOWNERS are literal path characters.
+  const globPath = path.replace(/\\[\s\S]|[\[\]\\]/gu, (token) =>
+    token.length > 1 ? token : escapeGlob(token)
+  );
+  const glob = `${rooted ? "" : "**/"}${globPath}`;
   const globs = directoryOnly ? [] : [glob];
   const basename = path.split("/").at(-1) ?? "";
   if (directoryOnly || !/[*?]/.test(basename)) {

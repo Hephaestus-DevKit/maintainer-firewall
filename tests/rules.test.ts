@@ -367,6 +367,7 @@ describe("analyzeSubject", () => {
 
   it.each([
     "<!-- Insert enough detail to explain the scope and coverage.\n## Test plan\nFixes #12\n-->",
+    "<!-- hidden\u2028Fixes #12 -->\n<!-- a -->text<!--\r\n## Test plan\n-->",
     "````md\n```\n## Test plan\nFixes #12\n````",
     "~~~~md\n~~~~ trailing prose\n## Test plan\nFixes #12\n~~~~"
   ])("ignores template matches inside comments and fences: %s", (body) => {

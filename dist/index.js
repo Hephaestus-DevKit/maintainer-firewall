@@ -49962,7 +49962,9 @@ function compileCodeOwnerPattern(pattern) {
         return [];
     }
     const rooted = pattern.startsWith("/") || path.includes("/");
-    const glob = `${rooted ? "" : "**/"}${path.replace(/[\[\]]/g, "\\$&")}`;
+    // Preserve escaped pairs. Bare brackets in CODEOWNERS are literal path characters.
+    const globPath = path.replace(/\\[\s\S]|[\[\]\\]/gu, (token) => token.length > 1 ? token : escape_escape(token));
+    const glob = `${rooted ? "" : "**/"}${globPath}`;
     const globs = directoryOnly ? [] : [glob];
     const basename = path.split("/").at(-1) ?? "";
     if (directoryOnly || !/[*?]/.test(basename)) {
@@ -51280,10 +51282,22 @@ function readBody(body) {
             inComment = false;
             text = text.slice(end + 3);
         }
-        text = text.replace(/<!--.*?(?:-->|$)/g, (comment) => {
-            inComment = !comment.endsWith("-->");
-            return "";
-        });
+        let commentStart = text.indexOf("<!--");
+        if (commentStart >= 0) {
+            let visible = "";
+            let cursor = 0;
+            while (commentStart >= 0) {
+                visible += text.slice(cursor, commentStart);
+                const end = text.indexOf("-->", commentStart + 4);
+                if (end < 0) {
+                    inComment = true;
+                    break;
+                }
+                cursor = end + 3;
+                commentStart = text.indexOf("<!--", cursor);
+            }
+            text = inComment ? visible : visible + text.slice(cursor);
+        }
         const fence = text.match(FENCE_PATTERN);
         const marker = fence?.[1];
         if (marker && (marker.startsWith("~") || !fence?.[2]?.includes("`"))) {

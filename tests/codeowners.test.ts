@@ -71,6 +71,17 @@ src/[id]/page.tsx @routes
     expect(ownersForPath("src/i/page.tsx", rules)).toEqual(["@default"]);
   });
 
+  it("preserves escaped wildcard and bracket literals", () => {
+    const rules = parseCodeOwners(String.raw`
+/src/\[id\].ts @routes
+/src/file\*.ts @special
+`);
+    expect(ownersForPath("src/[id].ts", rules)).toEqual(["@routes"]);
+    expect(ownersForPath("src/i.ts", rules)).toEqual([]);
+    expect(ownersForPath("src/file*.ts", rules)).toEqual(["@special"]);
+    expect(ownersForPath("src/file1.ts", rules)).toEqual([]);
+  });
+
   it("honors ownerless overrides and excludes emails and inline comments from routing hints", () => {
     const rules = parseCodeOwners(`
 /apps/ @apps # @ignored
