@@ -8,20 +8,24 @@ AI-assisted findings also include IDs. Model-provided IDs are normalized into st
 
 | ID | Applies to | Severity | Label | Trigger | Main tuning knobs |
 | --- | --- | --- | --- | --- | --- |
-| `issue.body.too_short` | Issues | warning | `needsInfo` | Issue body is shorter than `issue.minBodyCharacters`. | `issue.minBodyCharacters` |
+| `issue.body.too_short` | Issues | warning | `needsInfo` | Visible issue body is shorter than `issue.minBodyCharacters`. | `issue.minBodyCharacters` |
 | `issue.required_sections.missing` | Issues | warning | `needsInfo` | Required issue template headings are missing. | `issue.requiredSections` |
 | `issue.reproduction.missing` | Issues | warning | `needsInfo` | Issue text does not include clear reproduction steps, examples, commands, or expected versus actual behavior. | `issue.requireReproduction` |
 | `issue.environment.missing` | Issues | notice | `needsInfo` | Issue text does not mention version, runtime, OS, browser, or similar environment details. | `issue.requireEnvironment` |
 | `issue.duplicate.possible` | Issues | notice | `possibleDuplicate` | A similar existing issue was found from duplicate candidate search. | `issue.duplicateSearchLimit` |
 | `pr.draft` | Pull requests | notice | `maintainerReview` | Pull request is still marked as draft. | Mark PR ready for review |
-| `pr.body.too_short` | Pull requests | warning | `needsInfo` | Pull request body is shorter than `pullRequest.minBodyCharacters`. | `pullRequest.minBodyCharacters` |
+| `pr.body.too_short` | Pull requests | warning | `needsInfo` | Visible pull request body is shorter than `pullRequest.minBodyCharacters`. | `pullRequest.minBodyCharacters` |
 | `pr.required_sections.missing` | Pull requests | warning | `needsInfo` | Required pull request template headings are missing. | `pullRequest.requiredSections` |
-| `pr.linked_issue.missing` | Pull requests | notice | `needsInfo` | Pull request body does not link or close an issue. | `pullRequest.requireLinkedIssue` |
+| `pr.linked_issue.missing` | Pull requests | notice | `needsInfo` | Pull request prose contains no issue reference such as `#123`, `owner/repo#123`, or a GitHub issue URL. | `pullRequest.requireLinkedIssue` |
 | `pr.scope.large` | Pull requests | warning | `largeScope` | Changed line count exceeds `pullRequest.largeChangeThreshold`. | `pullRequest.largeChangeThreshold` |
-| `pr.tests.missing` | Pull requests | warning | `needsTests` | Code files changed but no non-deleted test files were detected. | `pullRequest.requireTestsForCodeChanges`, `pullRequest.testPathPatterns` |
-| `pr.sensitive_paths.changed` | Pull requests | notice | `securityReview` | Changed files match configured sensitive path globs. | `pullRequest.sensitivePaths` |
+| `pr.tests.missing` | Pull requests | warning | `needsTests` | The complete file list shows code changes without non-deleted test files. | `pullRequest.requireTestsForCodeChanges`, `pullRequest.testPathPatterns` |
+| `pr.sensitive_paths.changed` | Pull requests | notice | `securityReview` | Changed paths match configured sensitive path globs. For renames, both paths are checked. | `pullRequest.sensitivePaths` |
 | `content.secret.possible` | Issues and PRs | error | `securityReview` | Title or body matches a configured secret-like pattern. AI analysis is skipped when this fires. | `security.secretPatterns` |
 | `content.security_report.possible` | Issues and PRs | warning for issues, notice for PRs | `securityReview` | Text mentions security-sensitive language such as CVEs, exploits, credential leaks, or vulnerability terms. | `security.reportPatterns` |
+
+HTML template comments are excluded from body length, evidence, heading, and issue-reference checks. Security-sensitive content checks still inspect the raw title and body. Headings and issue references inside fenced code are treated as examples. A reproduction or environment heading contributes to its evidence check when it has content below it.
+
+Test detection includes conventional test directories and filenames, such as JavaScript and TypeScript `*.test.*`, Go `*_test.go`, and Python `test_*.py` or `*_test.py`, plus repository-specific `pullRequest.testPathPatterns`.
 
 ## Labels
 

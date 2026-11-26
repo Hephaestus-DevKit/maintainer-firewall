@@ -104,6 +104,29 @@ describe("mergeConfig", () => {
     expect(warnings).toContain("config.ai.timeoutMs should be at least 1000; using 1000 during normalization.");
     expect(warnings).toContain("config.pullRequest.largeChangeThreshold should be at least 1; using 1 during normalization.");
   });
+
+  it("diagnoses unsupported versions, unsafe numbers, and inherited property names", () => {
+    const override = JSON.parse(`{
+      "version": 2,
+      "comment": { "maxFindings": 1.5, "constructor": "unsupported" },
+      "ai": { "timeoutMs": 2147483648, "maxOutputTokens": 9007199254740992 },
+      "__proto__": { "unknown": true }
+    }`);
+    const config = mergeConfig(override);
+
+    expect(config.version).toBe(1);
+    expect(config.comment).toEqual(defaultConfig.comment);
+    expect(config.ai.maxOutputTokens).toBe(defaultConfig.ai.maxOutputTokens);
+    expect(config.ai.timeoutMs).toBe(2_147_483_647);
+    expect(configShapeWarnings(override)).toEqual(expect.arrayContaining([
+      "config.version should be 1; using the supported config version.",
+      "config.comment.maxFindings should be a safe integer; using the default value.",
+      "config.comment.constructor is not a supported config key and will be ignored.",
+      "config.ai.timeoutMs should be at most 2147483647; using 2147483647 during normalization.",
+      "config.ai.maxOutputTokens should be a safe integer; using the default value.",
+      "config.__proto__ is not a supported config key and will be ignored."
+    ]));
+  });
 });
 
 describe("loadConfigWithDiagnostics", () => {

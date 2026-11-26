@@ -17,6 +17,7 @@
 - Redacted effective-configuration JSON reports for rollout debugging.
 - Deterministic evaluation fixtures for rule, duplicate, prompt-injection, and AI eligibility boundaries.
 - Metrics workflow example for audit-mode calibration artifacts.
+- Configuration presets for libraries, monorepos, and security-sensitive projects.
 
 ## Near Term
 
@@ -31,7 +32,6 @@
 ## Later
 
 - Dashboard for maintainers to tune false positives.
-- Per-repository policy presets for libraries, CLIs, frameworks, and security-sensitive projects.
 - Maintainer feedback loop that learns which findings were useful.
 - Private security-report verification workflows.
 

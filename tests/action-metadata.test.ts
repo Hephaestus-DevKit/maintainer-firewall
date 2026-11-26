@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import type { Outcome } from "../src/types.js";
 
 type StringRecord = Record<string, string>;
 
@@ -53,6 +54,16 @@ const expectedOutputs = [
   "runtime-warnings"
 ];
 
+const outcomes: Record<Outcome | "skipped", true> = {
+  ready: true,
+  needs_info: true,
+  needs_tests: true,
+  needs_maintainer_review: true,
+  possible_duplicate: true,
+  blocked: true,
+  skipped: true
+};
+
 describe("action metadata", () => {
   it("declares the supported action runtime and entrypoint", () => {
     expect(metadata.name).toBe("Maintainer Firewall");
@@ -92,6 +103,15 @@ describe("action metadata", () => {
 
     for (const name of expectedOutputs) {
       expect(readme).toContain(`| \`${name}\` |`);
+    }
+  });
+
+  it("documents all possible outcomes in metadata and the README output table", () => {
+    const outcomeRow = readme.split("\n").find((line) => line.startsWith("| `outcome` |"));
+
+    for (const outcome of Object.keys(outcomes)) {
+      expect(metadata.outputs.outcome.description).toContain(outcome);
+      expect(outcomeRow).toContain(`\`${outcome}\``);
     }
   });
 });

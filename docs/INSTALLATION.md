@@ -44,7 +44,7 @@ jobs:
   firewall:
     runs-on: ubuntu-latest
     steps:
-      - uses: Hephaestus-DevKit/maintainer-firewall@v0.7.1
+      - uses: Hephaestus-DevKit/maintainer-firewall@v0.7.2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           dry-run: true
@@ -52,7 +52,7 @@ jobs:
 
 After the first run, inspect the step summary. It now shows both the review report and a setup table that confirms active surfaces such as dry-run, comments, labels, annotations, JSON report output, effective config output, diagnostics, AI status, and failure policy.
 
-For production workflows, keep the Maintainer Firewall reference on a release tag such as `v0.7.1`. If your organization requires stricter supply-chain controls, pin third-party helper actions in the same workflow to full commit SHAs after choosing their release versions.
+For production workflows, keep the Maintainer Firewall reference on a release tag such as `v0.7.2`. If your organization requires stricter supply-chain controls, pin third-party helper actions in the same workflow to full commit SHAs after choosing their release versions.
 
 ## Fork Pull Requests
 

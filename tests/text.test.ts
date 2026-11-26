@@ -18,4 +18,12 @@ describe("text helpers", () => {
     expect(output.length).toBeLessThanOrEqual(40);
     expect(output).toContain("...[truncated]");
   });
+
+  it("uses the available length without splitting emoji or overflowing a small budget", () => {
+    expect(truncate("🦉ABC", 1)).toBe("");
+    expect(truncate("🦉ABC", 3)).toBe("🦉A");
+    expect(truncate(`🦉${"x".repeat(30)}`, 16)).toBe("\n...[truncated]");
+    expect(truncate(`🦉${"x".repeat(30)}`, 17)).toBe("🦉\n...[truncated]");
+    expect(truncate("abc", 0)).toBe("");
+  });
 });

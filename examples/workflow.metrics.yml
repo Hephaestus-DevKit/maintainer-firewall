@@ -12,14 +12,14 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: maintainer-firewall-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  group: maintainer-firewall-metrics-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   firewall:
     runs-on: ubuntu-latest
     steps:
-      - uses: Hephaestus-DevKit/maintainer-firewall@v0.7.1
+      - uses: Hephaestus-DevKit/maintainer-firewall@v0.7.2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           dry-run: true
@@ -30,8 +30,14 @@ jobs:
         shell: bash
         run: |
           node <<'JS'
-          const { readFileSync } = require("node:fs");
-          const report = JSON.parse(readFileSync("reports/maintainer-firewall.json", "utf8"));
+          const { existsSync, readFileSync } = require("node:fs");
+          const reportPath = "reports/maintainer-firewall.json";
+          if (!existsSync(reportPath)) {
+            console.log("::warning::Maintainer Firewall JSON report was unavailable for calibration metrics.");
+            process.exit(0);
+          }
+
+          const report = JSON.parse(readFileSync(reportPath, "utf8"));
           const byId = Object.create(null);
           for (const finding of report.findings || []) {
             byId[finding.id] = (byId[finding.id] || 0) + 1;
@@ -44,6 +50,8 @@ jobs:
           JS
 
       - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
         with:
           name: maintainer-firewall-reports
           path: reports/
+          if-no-files-found: ignore

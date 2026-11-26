@@ -21,10 +21,10 @@ const requiredFiles = [
 
 const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 const readme = readFileSync("README.md", "utf8");
-const metricsWorkflow = readFileSync("examples/workflow.metrics.yml", "utf8");
+const metricsWorkflow = parse(readFileSync("examples/workflow.metrics.yml", "utf8"));
 const maintenanceGuide = readFileSync("docs/MAINTENANCE.md", "utf8");
 const marketplaceReadiness = readFileSync("docs/MARKETPLACE_READINESS.md", "utf8");
-const releaseWorkflow = readFileSync(".github/workflows/release.yml", "utf8");
+const releaseWorkflow = parse(readFileSync(".github/workflows/release.yml", "utf8"));
 const vitestConfig = readFileSync("vitest.config.ts", "utf8");
 
 for (const file of requiredFiles) {
@@ -36,8 +36,7 @@ for (const file of [
   "examples/config.strict.yml",
   "examples/config.library.yml",
   "examples/config.monorepo.yml",
-  "examples/config.security-sensitive.yml",
-  "examples/workflow.metrics.yml"
+  "examples/config.security-sensitive.yml"
 ]) {
   parse(readFileSync(file, "utf8"));
 }
@@ -68,10 +67,6 @@ if (!packageJson.scripts?.["metrics:summary"]?.includes("scripts/summarize-metri
   throw new Error("package.json should expose npm run metrics:summary.");
 }
 
-if (!packageJson.scripts?.["market:check"]?.includes("npm run ci")) {
-  throw new Error("package.json market:check should include npm run ci so bundled dist verification cannot be skipped.");
-}
-
 if (!packageJson.devDependencies?.["fast-check"]) {
   throw new Error("package.json should include fast-check for property-based fuzz coverage.");
 }
@@ -80,24 +75,31 @@ if (!marketplaceReadiness.includes("GitHub Marketplace has repository-level list
   throw new Error("docs/MARKETPLACE_READINESS.md should document the direct Marketplace listing caveat.");
 }
 
-if (metricsWorkflow.includes("actions/upload-artifact@v4")) {
-  throw new Error("examples/workflow.metrics.yml should use the current upload-artifact major version.");
+const metricsUpload = metricsWorkflow.jobs?.firewall?.steps?.find((step) =>
+  /^actions\/upload-artifact@(?:v[1-9]\d*|[a-f0-9]{40})$/.test(step.uses ?? ""));
+if (!metricsUpload || metricsUpload.with?.path !== "reports/") {
+  throw new Error("examples/workflow.metrics.yml should upload reports with a versioned actions/upload-artifact step.");
 }
 
-if (!metricsWorkflow.includes("actions/upload-artifact@v7")) {
-  throw new Error("examples/workflow.metrics.yml should include the current upload-artifact example.");
+const release = releaseWorkflow.jobs?.release;
+const releaseSteps = release?.steps ?? [];
+const pack = releaseSteps.find((step) => step.id === "pack");
+const attest = releaseSteps.find((step) => step.id === "attest");
+if (release?.permissions?.attestations !== "write" ||
+    release.permissions["id-token"] !== "write" ||
+    !/^actions\/attest@[a-f0-9]{40}$/.test(attest?.uses ?? "")) {
+  throw new Error(".github/workflows/release.yml should use a commit-pinned actions/attest step with attestation permissions.");
 }
 
-for (const requiredReleaseWorkflowText of [
-  "attestations: write",
-  "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26",
-  "steps.attest.outputs.bundle-path",
-  ".tgz.sigstore.json",
-  "release-assets/*"
-]) {
-  if (!releaseWorkflow.includes(requiredReleaseWorkflowText)) {
-    throw new Error(`.github/workflows/release.yml should include ${requiredReleaseWorkflowText}.`);
-  }
+const assetPath = "${{ steps.pack.outputs.asset-path }}";
+const stagedBundle = releaseSteps.find((step) =>
+  step.env?.ATTESTATION_BUNDLE === "${{ steps.attest.outputs.bundle-path }}" &&
+  step.env?.RELEASE_ASSET === assetPath);
+const publish = releaseSteps.find((step) => /^softprops\/action-gh-release@/.test(step.uses ?? ""));
+const publishedFiles = publish?.with?.files?.trim().split(/\s*\n\s*/) ?? [];
+if (!pack || attest.with?.["subject-path"] !== assetPath || !stagedBundle?.run?.includes(".sigstore.json") ||
+    !publishedFiles.includes(assetPath) || !publishedFiles.includes(`${assetPath}.sigstore.json`)) {
+  throw new Error(".github/workflows/release.yml should attest and publish the packed asset and its Sigstore bundle.");
 }
 
 if (!maintenanceGuide.includes("gh attestation verify")) {
@@ -138,4 +140,4 @@ for (const excludedSource of ['"src/index.ts"', '"src/types.ts"']) {
   }
 }
 
-console.log("Local market-readiness checks passed. Direct GitHub Marketplace listing still depends on repository-level listing requirements.");
+console.log("Documentation, examples, and release workflow checks passed.");

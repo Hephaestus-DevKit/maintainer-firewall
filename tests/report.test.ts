@@ -101,9 +101,9 @@ describe("createReportPayload", () => {
       number: 2,
       title: "Update parser",
       body: "body",
-      author: "contributor",
+      author: `contributor-${secret}`,
       labels: [`leaked-${secret}`],
-      htmlUrl: "https://github.com/example/repo/pull/2",
+      htmlUrl: `https://github.com/example/${secret}/pull/2`,
       draft: false,
       baseRef: "main",
       headRef: "parser",
@@ -118,11 +118,14 @@ describe("createReportPayload", () => {
       ]
     };
 
-    const payload = createReportPayload(subject, [], null, defaultConfig);
+    const payload = createReportPayload(subject, [], null, defaultConfig, `label leaked-${secret} is ignored`);
     const serialized = JSON.stringify(payload);
 
     expect(serialized).not.toContain(secret);
     expect(payload.subject?.labels).toEqual(["leaked-[redacted]"]);
+    expect(payload.subject?.author).toBe("contributor-[redacted]");
+    expect(payload.subject?.url).toBe("https://github.com/example/[redacted]/pull/2");
+    expect(payload.skipReason).toBe("label leaked-[redacted] is ignored");
     expect(payload.subject?.changedFiles?.[0]?.filename).toBe("src/[redacted].ts");
   });
 

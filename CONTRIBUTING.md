@@ -4,8 +4,10 @@ Thanks for helping improve Maintainer Firewall. The project is intentionally mai
 
 ## Development
 
+Use Node.js 20.19+ or 22.12+ within those major versions, or Node.js 24 or later.
+
 ```bash
-npm install
+npm ci
 npm run ci
 npm run demo
 ```

@@ -1,4 +1,4 @@
-import type { Finding, FirewallConfig } from "./types.js";
+import type { Finding, FirewallConfig, Subject } from "./types.js";
 
 export function labelsForFindings(findings: Finding[], config: FirewallConfig): string[] {
   if (!config.labeling.enabled) {
@@ -21,12 +21,19 @@ export function managedLabels(config: FirewallConfig): string[] {
 export function staleManagedLabels(
   existingLabels: string[],
   desiredLabels: string[],
-  config: FirewallConfig
+  config: FirewallConfig,
+  subject?: Subject
 ): string[] {
   if (!config.labeling.enabled || !config.labeling.removeStale) {
     return [];
   }
 
+  let retainedLabels = desiredLabels;
+  if (subject?.kind === "pull_request" && subject.changedFilesComplete === false) {
+    retainedLabels = [...desiredLabels, config.labels.needsTests, config.labels.largeScope, config.labels.securityReview];
+  } else if (subject?.kind === "issue" && subject.duplicateSearchComplete === false) {
+    retainedLabels = [...desiredLabels, config.labels.possibleDuplicate];
+  }
   return managedLabels(config)
-    .filter((label) => existingLabels.includes(label) && !desiredLabels.includes(label));
+    .filter((label) => existingLabels.includes(label) && !retainedLabels.includes(label));
 }

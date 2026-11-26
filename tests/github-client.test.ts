@@ -2,6 +2,9 @@ import * as core from "@actions/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { applyLabels, buildSubject, getConfigRef, hasReportComment, removeLabels, upsertComment } from "../src/github-client.js";
 
+const reportMarker = "<!-- maintainer-firewall:report -->";
+const reportAuthor = { id: 41898282, login: "github-actions[bot]" };
+
 vi.mock("@actions/core", () => ({
   info: vi.fn(),
   warning: vi.fn()
@@ -27,6 +30,7 @@ describe("buildSubject", () => {
     expect(subject?.kind).toBe("pull_request");
     if (subject?.kind === "pull_request") {
       expect(subject.changedFiles).toEqual([]);
+      expect(subject.changedFilesComplete).toBe(false);
     }
     expect(core.warning).toHaveBeenCalledWith(
       "Could not list files for pull request #42: Resource not accessible by integration. Continuing with title and body checks only."
@@ -73,6 +77,31 @@ describe("buildSubject", () => {
     }
   });
 
+  it("keeps available files and previous names when the file list is incomplete", async () => {
+    const warning = vi.fn();
+    const octokit = {
+      paginate: vi.fn().mockResolvedValue([
+        {
+          filename: "new.ts",
+          previous_filename: "old.ts",
+          status: "renamed",
+          additions: 0,
+          deletions: 0,
+          changes: 0
+        }
+      ]),
+      rest: { pulls: { listFiles: vi.fn() } }
+    };
+
+    await expect(buildSubject(octokit as never, pullRequestContext({ changed_files: 2 }), 0, warning))
+      .resolves.toMatchObject({
+        kind: "pull_request",
+        changedFiles: [{ filename: "new.ts", previousFilename: "old.ts", status: "renamed" }],
+        changedFilesComplete: false
+      });
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining("File-based checks may be incomplete"));
+  });
+
   it("builds issue subjects and skips duplicate search for short titles", async () => {
     const octokit = {
       rest: {
@@ -89,6 +118,7 @@ describe("buildSubject", () => {
     expect(subject?.kind).toBe("issue");
     if (subject?.kind === "issue") {
       expect(subject.duplicateCandidates).toEqual([]);
+      expect(subject.duplicateSearchComplete).toBe(false);
     }
     expect(octokit.rest.search.issuesAndPullRequests).not.toHaveBeenCalled();
   });
@@ -165,6 +195,23 @@ describe("buildSubject", () => {
     }
   });
 
+  it("keeps matches from a partial GitHub search and marks the result incomplete", async () => {
+    const warning = vi.fn();
+    const search = vi.fn().mockResolvedValue({
+      data: {
+        incomplete_results: true,
+        items: [{ number: 12, title: "Parser crash startup", html_url: "https://github.com/octo/repo/issues/12" }]
+      }
+    });
+    const octokit = { rest: { search: { issuesAndPullRequests: search } } };
+
+    const subject = await buildSubject(octokit as never, issueContext({ title: "Parser parser crash startup" }), 15, warning);
+
+    expect(search).toHaveBeenCalledWith({ q: "repo:octo/repo is:issue in:title parser crash startup", per_page: 16 });
+    expect(subject).toMatchObject({ duplicateCandidates: [{ number: 12 }], duplicateSearchComplete: false });
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining("did not complete the duplicate issue search"));
+  });
+
   it("warns and continues when duplicate issue search fails", async () => {
     const warnings: string[] = [];
     const octokit = {
@@ -182,6 +229,7 @@ describe("buildSubject", () => {
     expect(subject?.kind).toBe("issue");
     if (subject?.kind === "issue") {
       expect(subject.duplicateCandidates).toEqual([]);
+      expect(subject.duplicateSearchComplete).toBe(false);
     }
     expect(warnings).toEqual(["Duplicate issue search failed: search down"]);
   });
@@ -196,7 +244,7 @@ describe("applyLabels", () => {
     const octokit = {
       rest: {
         issues: {
-          getLabel: vi.fn().mockRejectedValue({ status: 404 }),
+          getLabel: vi.fn().mockRejectedValueOnce({ status: 404 }).mockResolvedValueOnce({}),
           createLabel: vi.fn().mockRejectedValue({ status: 422 }),
           addLabels: vi.fn().mockResolvedValue({})
         }
@@ -212,7 +260,7 @@ describe("applyLabels", () => {
       color: "ededed",
       description: "Managed by Maintainer Firewall"
     });
-    expect(core.info).toHaveBeenCalledWith('Label "needs-info" already exists after a concurrent create attempt.');
+    expect(octokit.rest.issues.getLabel).toHaveBeenCalledTimes(2);
     expect(octokit.rest.issues.addLabels).toHaveBeenCalledWith({
       owner: "octo",
       repo: "repo",
@@ -236,6 +284,22 @@ describe("applyLabels", () => {
 
     expect(octokit.rest.issues.addLabels).not.toHaveBeenCalled();
     expect(octokit.rest.issues.getLabel).not.toHaveBeenCalled();
+  });
+
+  it("preserves a failed label validation when GitHub did not create the label", async () => {
+    const validationError = { status: 422, message: "Validation Failed" };
+    const octokit = {
+      rest: {
+        issues: {
+          getLabel: vi.fn().mockRejectedValue({ status: 404 }),
+          createLabel: vi.fn().mockRejectedValue(validationError),
+          addLabels: vi.fn()
+        }
+      }
+    };
+
+    await expect(applyLabels(octokit as never, "octo", "repo", 42, ["needs-info"], true)).rejects.toEqual(validationError);
+    expect(octokit.rest.issues.addLabels).not.toHaveBeenCalled();
   });
 
   it("creates missing managed labels with deterministic colors", async () => {
@@ -282,13 +346,15 @@ describe("hasReportComment", () => {
 
   it("returns true when a managed report comment already exists", async () => {
     const octokit = {
+      graphql: vi.fn().mockResolvedValue({ viewer: { databaseId: reportAuthor.id, login: reportAuthor.login } }),
       rest: {
         issues: {
           listComments: vi.fn().mockResolvedValue({
             data: [
               {
                 id: 10,
-                body: "<!-- maintainer-firewall:report -->\n## Maintainer Firewall report"
+                body: `${reportMarker}\n## Maintainer Firewall report`,
+                user: reportAuthor
               }
             ]
           })
@@ -309,9 +375,11 @@ describe("hasReportComment", () => {
   it("stops scanning comments as soon as a managed report is found", async () => {
     const firstPage = Array.from({ length: 100 }, (_, index) => ({
       id: index + 1,
-      body: index === 9 ? "<!-- maintainer-firewall:report -->" : "ordinary comment"
+      body: index === 9 ? reportMarker : "ordinary comment",
+      user: reportAuthor
     }));
     const octokit = {
+      graphql: vi.fn().mockResolvedValue({ viewer: { databaseId: reportAuthor.id, login: reportAuthor.login } }),
       rest: {
         issues: {
           listComments: vi.fn().mockResolvedValue({
@@ -342,20 +410,23 @@ describe("hasReportComment", () => {
 
   it("scans additional comment pages only when needed", async () => {
     const octokit = {
+      graphql: vi.fn().mockResolvedValue({ viewer: { databaseId: reportAuthor.id, login: reportAuthor.login } }),
       rest: {
         issues: {
           listComments: vi.fn()
             .mockResolvedValueOnce({
               data: Array.from({ length: 100 }, (_, index) => ({
                 id: index + 1,
-                body: "ordinary comment"
+                body: reportMarker,
+                user: { id: index + 1, login: "contributor" }
               }))
             })
             .mockResolvedValueOnce({
               data: [
                 {
                   id: 101,
-                  body: "<!-- maintainer-firewall:report -->"
+                  body: reportMarker,
+                  user: reportAuthor
                 }
               ]
             })
@@ -371,6 +442,7 @@ describe("hasReportComment", () => {
       per_page: 100,
       page: 2
     });
+    expect(octokit.graphql).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -381,13 +453,15 @@ describe("issue comment and label operations", () => {
 
   it("updates an existing managed report comment", async () => {
     const octokit = {
+      graphql: vi.fn().mockResolvedValue({ viewer: { databaseId: reportAuthor.id, login: reportAuthor.login } }),
       rest: {
         issues: {
           listComments: vi.fn().mockResolvedValue({
             data: [
               {
                 id: 99,
-                body: "<!-- maintainer-firewall:report -->"
+                body: reportMarker,
+                user: reportAuthor
               }
             ]
           }),
@@ -410,10 +484,14 @@ describe("issue comment and label operations", () => {
 
   it("creates a new report comment when no managed report exists", async () => {
     const octokit = {
+      graphql: vi.fn().mockResolvedValue({ viewer: { databaseId: reportAuthor.id, login: reportAuthor.login } }),
       rest: {
         issues: {
           listComments: vi.fn().mockResolvedValue({
-            data: []
+            data: [
+              { id: 12, body: reportMarker, user: { id: 2, login: "contributor" } },
+              { id: 13, body: `Other report\n${reportMarker}`, user: reportAuthor }
+            ]
           }),
           updateComment: vi.fn(),
           createComment: vi.fn().mockResolvedValue({})
@@ -430,6 +508,45 @@ describe("issue comment and label operations", () => {
       body: "new body"
     });
     expect(octokit.rest.issues.updateComment).not.toHaveBeenCalled();
+  });
+
+  it("keeps an unchanged report written with a personal access token", async () => {
+    const body = `${reportMarker}\n## My report`;
+    const octokit = {
+      graphql: vi.fn().mockResolvedValue({ viewer: { databaseId: null, login: "Maintainer" } }),
+      rest: {
+        issues: {
+          listComments: vi.fn().mockResolvedValue({ data: [{ id: 99, body, user: { id: 10, login: "maintainer" } }] }),
+          updateComment: vi.fn(),
+          createComment: vi.fn()
+        }
+      }
+    };
+
+    await expect(hasReportComment(octokit as never, "octo", "repo", 42)).resolves.toBe(true);
+    await upsertComment(octokit as never, "octo", "repo", 42, body, true);
+
+    expect(octokit.graphql).toHaveBeenCalledTimes(1);
+    expect(octokit.rest.issues.updateComment).not.toHaveBeenCalled();
+    expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
+  });
+
+  it("keeps existing comments untouched when GitHub cannot verify ownership", async () => {
+    const octokit = {
+      graphql: vi.fn().mockResolvedValue({ viewer: null }),
+      rest: {
+        issues: {
+          listComments: vi.fn().mockResolvedValue({ data: [{ id: 99, body: reportMarker, user: reportAuthor }] }),
+          updateComment: vi.fn(),
+          createComment: vi.fn()
+        }
+      }
+    };
+
+    await expect(upsertComment(octokit as never, "octo", "repo", 42, "new body", true))
+      .rejects.toThrow("GitHub did not identify the account");
+    expect(octokit.rest.issues.updateComment).not.toHaveBeenCalled();
+    expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
   });
 
   it("creates comments directly when existing report updates are disabled", async () => {
@@ -483,6 +600,10 @@ describe("getConfigRef", () => {
     expect(getConfigRef(pullRequestContext())).toBe("base-sha");
   });
 
+  it("uses the base branch when a pull request event omits the base sha", () => {
+    expect(getConfigRef(pullRequestContext({ base: { ref: "release" } }))).toBe("release");
+  });
+
   it("normalizes branch and tag refs", () => {
     expect(getConfigRef({
       eventName: "push",
@@ -507,7 +628,7 @@ describe("getConfigRef", () => {
   });
 });
 
-function pullRequestContext() {
+function pullRequestContext(overrides: { changed_files?: number; base?: { ref: string; sha?: string } } = {}) {
   return {
     eventName: "pull_request_target",
     repo: {
@@ -534,7 +655,8 @@ function pullRequestContext() {
         },
         head: {
           ref: "feature"
-        }
+        },
+        ...overrides
       }
     }
   } as never;

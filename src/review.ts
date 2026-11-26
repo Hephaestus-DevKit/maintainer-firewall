@@ -28,7 +28,7 @@ export function createReviewSummary(
     score,
     outcome,
     headline: headlineForOutcome(subject, outcome, findings),
-    nextSteps: nextStepsForOutcome(outcome, findings),
+    nextSteps: nextStepsForOutcome(subject, outcome, findings),
     passedChecks: passedChecksForSubject(subject, findings, config),
     labels: labelsForFindings(findings, config),
     routingHints
@@ -72,7 +72,7 @@ function chooseOutcome(findings: Finding[]): Outcome {
     return "needs_maintainer_review";
   }
 
-  if (findings.some((finding) => finding.severity === "notice")) {
+  if (findings.length > 0) {
     return "needs_maintainer_review";
   }
 
@@ -91,24 +91,25 @@ function headlineForOutcome(subject: Subject, outcome: Outcome, findings: Findin
   }
 
   if (outcome === "needs_tests") {
-    return "This pull request changes code but does not include detected test changes.";
+    return subject.kind === "pull_request"
+      ? "This pull request changes code but does not include detected test changes."
+      : "This issue needs more testing evidence before review.";
   }
 
   if (outcome === "possible_duplicate") {
-    return "This issue may overlap with an existing report.";
+    return `This ${subjectName} may overlap with an existing report.`;
   }
 
   if (outcome === "blocked") {
     return `This ${subjectName} has blocking findings that should be handled first.`;
   }
 
-  const notices = findings.filter((finding) => finding.severity === "notice").length;
-  return notices > 0
-    ? `This ${subjectName} is reviewable, with ${notices} maintenance note${notices === 1 ? "" : "s"}.`
+  return findings.every((finding) => finding.severity === "notice")
+    ? `This ${subjectName} is reviewable, with ${findings.length} maintenance note${findings.length === 1 ? "" : "s"}.`
     : `This ${subjectName} should be routed to a maintainer for review.`;
 }
 
-function nextStepsForOutcome(outcome: Outcome, findings: Finding[]): string[] {
+function nextStepsForOutcome(subject: Subject, outcome: Outcome, findings: Finding[]): string[] {
   if (findings.length === 0) {
     return ["A maintainer can review this without waiting for more automated triage context."];
   }
@@ -117,7 +118,14 @@ function nextStepsForOutcome(outcome: Outcome, findings: Finding[]): string[] {
   const coveredLabels = new Set<string>();
 
   if (outcome === "needs_info") {
-    addStep(steps, "Please add the missing context: a minimal reproduction, relevant versions, and expected versus actual behavior.");
+    for (const finding of findings.filter((item) => item.label === "needsInfo")) {
+      addStep(steps, friendlyStepForFinding(finding) ?? finding.suggestion);
+    }
+    if (steps.length === 0) {
+      addStep(steps, subject.kind === "issue"
+        ? "Please add the missing reproduction, environment, or other issue details."
+        : "Please describe the change, why it is needed, and how it was tested.");
+    }
     coveredLabels.add("needsInfo");
   }
 
@@ -133,16 +141,13 @@ function nextStepsForOutcome(outcome: Outcome, findings: Finding[]): string[] {
 
   if (outcome === "needs_maintainer_review") {
     const securityFinding = findings.find((finding) => finding.label === "securityReview");
-    addStep(
-      steps,
-      securityFinding
-        ? friendlyStepForFinding(securityFinding)
-        : "A maintainer should route this to the owner of the touched area before merging."
-    );
     if (securityFinding) {
+      addStep(steps, friendlyStepForFinding(securityFinding) ?? securityFinding.suggestion ??
+        "A maintainer should route this to the project's security owner.");
       coveredLabels.add("securityReview");
+    } else if (!findings.some((finding) => finding.label === "largeScope")) {
+      addStep(steps, "A maintainer should review the findings and involve the area owner if needed.");
     }
-    coveredLabels.add("largeScope");
   }
 
   for (const finding of findings) {
@@ -197,43 +202,52 @@ function friendlyStepForFinding(finding: Finding): string | undefined {
 }
 
 function passedChecksForSubject(subject: Subject, findings: Finding[], config: FirewallConfig): string[] {
-  const ids = new Set(findings.map((finding) => finding.id));
+  const unverified = new Set([...config.rules.disabled, ...findings.map((finding) => finding.id)]);
 
   if (subject.kind === "issue") {
+    if (!config.issue.enabled) {
+      return [];
+    }
+
     return [
-      config.issue.minBodyCharacters > 0 && !ids.has("issue.body.too_short")
+      config.issue.minBodyCharacters > 0 && !unverified.has("issue.body.too_short")
         ? "Issue body has enough detail"
         : undefined,
-      config.issue.requiredSections.length > 0 && !ids.has("issue.required_sections.missing")
+      config.issue.requiredSections.length > 0 && !unverified.has("issue.required_sections.missing")
         ? "Required issue sections are present"
         : undefined,
-      config.issue.requireReproduction && !ids.has("issue.reproduction.missing")
+      config.issue.requireReproduction && !unverified.has("issue.reproduction.missing")
         ? "Reproduction signal found"
         : undefined,
-      config.issue.requireEnvironment && !ids.has("issue.environment.missing")
+      config.issue.requireEnvironment && !unverified.has("issue.environment.missing")
         ? "Environment signal found"
         : undefined,
-      config.issue.duplicateSearchLimit > 0 && !ids.has("issue.duplicate.possible")
+      config.issue.duplicateSearchLimit > 0 && subject.duplicateSearchComplete !== false && !unverified.has("issue.duplicate.possible")
         ? "No likely duplicate found"
         : undefined
     ].filter((value): value is string => Boolean(value));
   }
 
+  if (!config.pullRequest.enabled) {
+    return [];
+  }
+
+  const completeFiles = subject.changedFilesComplete !== false;
   return [
-    config.pullRequest.minBodyCharacters > 0 && !ids.has("pr.body.too_short")
+    config.pullRequest.minBodyCharacters > 0 && !unverified.has("pr.body.too_short")
       ? "PR description has enough detail"
       : undefined,
-    config.pullRequest.requiredSections.length > 0 && !ids.has("pr.required_sections.missing")
+    config.pullRequest.requiredSections.length > 0 && !unverified.has("pr.required_sections.missing")
       ? "Required PR sections are present"
       : undefined,
-    config.pullRequest.requireLinkedIssue && !ids.has("pr.linked_issue.missing")
+    config.pullRequest.requireLinkedIssue && !unverified.has("pr.linked_issue.missing")
       ? "Issue link or reference found"
       : undefined,
-    config.pullRequest.requireTestsForCodeChanges && !ids.has("pr.tests.missing")
+    completeFiles && config.pullRequest.requireTestsForCodeChanges && !unverified.has("pr.tests.missing")
       ? "Test signal found or no code change detected"
       : undefined,
-    !ids.has("pr.scope.large") ? "Change size is within threshold" : undefined,
-    config.pullRequest.sensitivePaths.length > 0 && !ids.has("pr.sensitive_paths.changed")
+    completeFiles && !unverified.has("pr.scope.large") ? "Change size is within threshold" : undefined,
+    completeFiles && config.pullRequest.sensitivePaths.length > 0 && !unverified.has("pr.sensitive_paths.changed")
       ? "No configured sensitive paths changed"
       : undefined
   ].filter((value): value is string => Boolean(value));

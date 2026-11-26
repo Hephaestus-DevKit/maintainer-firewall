@@ -1,9 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { analyzeWithAi } from "../lib/src/ai.js";
-import { analyzeSubject } from "../lib/src/rules.js";
+import { analyzeWithAi, isAiEligible } from "../lib/src/ai.js";
 import { mergeConfig } from "../lib/src/config.js";
-import { applyFindingPolicy } from "../lib/src/finding-policy.js";
 
 const apiKey = process.env.OPENAI_API_KEY;
 if (!apiKey) {
@@ -36,9 +34,8 @@ for (const { file, fixture } of eligibleFixtures) {
       enabled: true
     }
   });
-  const deterministicFindings = applyFindingPolicy(analyzeSubject(fixture.subject, config), config);
-  if (deterministicFindings.some((finding) => finding.id === "content.secret.possible")) {
-    failures.push(`${file}: deterministic secret finding should make AI ineligible`);
+  if (!isAiEligible(fixture.subject, config)) {
+    failures.push(`${file}: fixture is marked AI-eligible but the runtime data boundary rejected it`);
     continue;
   }
 
@@ -63,7 +60,7 @@ for (const { file, fixture } of eligibleFixtures) {
 
   console.log(`${file}: aiFindings=${findings.length}; warnings=${warnings.length}`);
   for (const warning of warnings) {
-    console.log(`  warning: ${warning}`);
+    failures.push(`${file}: ${warning}`);
   }
 }
 

@@ -1,6 +1,7 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { configShapeWarnings, mergeConfig } from "../src/config.js";
 
 interface PackageJson {
   version: string;
@@ -25,7 +26,7 @@ interface IssueTemplate {
 
 describe("project documentation", () => {
   it("does not list shipped report surfaces as near-term roadmap work", () => {
-    const roadmap = readFileSync("ROADMAP.md", "utf8");
+    const roadmap = readFileSync("docs/ROADMAP.md", "utf8");
     const nearTerm = sectionBetween(roadmap, "## Near Term", "## Later");
 
     expect(nearTerm).not.toContain("CODEOWNERS-aware routing hints");
@@ -64,16 +65,15 @@ describe("project documentation", () => {
 
     expect(packageJson.scripts.ci).toContain("npm run check");
     expect(packageJson.scripts.ci).toContain("npm run evaluate");
+    expect(packageJson.scripts.ci).toContain("scripts/market-check.mjs");
     expect(packageJson.scripts.ci).toContain("npm run verify:dist");
+    expect(packageJson.scripts["release:check"]).toContain("npm run ci");
     expect(packageJson.scripts["release:check"]).toContain("npm run demo");
-    expect(packageJson.scripts["release:check"]).toContain("npm run evaluate");
     expect(packageJson.scripts["release:check"]).toContain("npm run coverage");
     expect(packageJson.scripts["release:check"]).toContain("npm audit --audit-level=moderate");
-    expect(packageJson.scripts["market:check"]).toContain("npm run ci");
+    expect(packageJson.scripts["market:check"]).toContain("npm run release:check");
     expect(packageJson.scripts["market:check"]).toContain("npm pack --dry-run");
-    expect(packageJson.scripts["market:check"]).toContain("npm audit --audit-level=moderate");
     expect(packageJson.scripts["metrics:summary"]).toContain("scripts/summarize-metrics.mjs");
-    expect(packageJson.scripts["market:check"]).toContain("scripts/market-check.mjs");
 
     expect(testWorkflow).toContain("npm run ci");
     expect(releaseWorkflow).toContain("npm run release:check");
@@ -96,6 +96,21 @@ describe("project documentation", () => {
       expect(content).toContain("npm run ci");
       expect(content).not.toContain("npm run verify:dist");
     }
+  });
+
+  it("uses effective finding severity overrides in the README quick start", () => {
+    const readme = readFileSync("README.md", "utf8");
+    const configExample = sectionBetween(readme, "### Configure the rules", "## Rollout modes");
+    const yaml = configExample.match(/```yaml\n([\s\S]*?)\n```/)?.[1];
+    expect(yaml).toBeDefined();
+
+    const config: unknown = parse(yaml ?? "");
+    expect(configShapeWarnings(config)).toEqual([]);
+    expect(mergeConfig(config).rules.severityOverrides).toEqual({
+      notice: ["pr.tests.missing"],
+      warning: ["issue.environment.missing"],
+      error: []
+    });
   });
 
   it("keeps updated workflow YAML parseable", () => {
@@ -133,15 +148,18 @@ describe("project documentation", () => {
     expect(support).toContain("runtime warning outputs");
   });
 
-  it("keeps rollout workflow examples on the current release tag", () => {
-    for (const path of [
-      "examples/workflow.audit.yml",
-      "examples/workflow.advisory.yml",
-      "examples/workflow.collaborative.yml",
-      "examples/workflow.strict.yml",
-      "examples/workflow.metrics.yml"
-    ]) {
-      expect(readFileSync(path, "utf8")).toContain(`Hephaestus-DevKit/maintainer-firewall@${currentReleaseTag()}`);
+  it("pins all installation examples to the package version", () => {
+    const examples = readdirSync("examples").filter((name) => name.startsWith("workflow."));
+    const guides = ["README.md", ...readdirSync("docs").map((name) => `docs/${name}`)];
+    const refs = /uses:\s+Hephaestus-DevKit\/maintainer-firewall@(\S+)/g;
+    for (const path of [...guides, ...examples.map((name) => `examples/${name}`)]) {
+      const matches = [...readFileSync(path, "utf8").matchAll(refs)];
+      if (path === "README.md" || path.startsWith("examples/")) {
+        expect(matches.length, path).toBeGreaterThan(0);
+      }
+      for (const match of matches) {
+        expect(match[1], path).toBe(currentReleaseTag());
+      }
     }
   });
 

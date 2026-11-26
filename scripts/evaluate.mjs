@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { analyzeSubject } from "../lib/src/rules.js";
+import { isAiEligible } from "../lib/src/ai.js";
 import { mergeConfig } from "../lib/src/config.js";
 import { applyFindingPolicy } from "../lib/src/finding-policy.js";
 import { createReviewSummary } from "../lib/src/review.js";
@@ -23,7 +24,7 @@ for (const file of files) {
   const findings = applyFindingPolicy(analyzeSubject(fixture.subject, config), config);
   const summary = createReviewSummary(fixture.subject, findings, config);
   const findingIds = findings.map((finding) => finding.id);
-  const aiEligible = Boolean(config.ai.enabled) && !findingIds.includes("content.secret.possible");
+  const aiEligible = isAiEligible(fixture.subject, config);
 
   checkFixtureArray(file, "expectedFindings", fixture.expectedFindings, (id) => findingIds.includes(id), failures);
   checkFixtureArray(file, "unexpectedFindings", fixture.unexpectedFindings, (id) => !findingIds.includes(id), failures);

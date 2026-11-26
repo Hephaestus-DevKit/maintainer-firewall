@@ -18,12 +18,12 @@ Use these checks by default:
 | Marketplace readiness | `npm run market:check` |
 | Release candidate | `npm run release:check` |
 
-`npm run ci` runs the TypeScript build, test suite, deterministic evaluation fixtures, and bundled `dist/` verification.
-`npm run release:check` adds coverage thresholds, the demo run, bundled `dist/` verification, and moderate-severity dependency audit.
-`npm run market:check` runs the full local market-readiness gate: CI, coverage, demo, audit, package dry-run contents, and required launch docs.
+`npm run ci` runs the TypeScript build, test suite, deterministic evaluation fixtures, documentation and release workflow checks, and bundled `dist/` verification.
+`npm run release:check` adds coverage thresholds, the demo, and a dependency audit at moderate severity.
+`npm run market:check` adds a package dry run so you can review the contents of the release archive.
 `npm run evaluate` runs deterministic product fixtures without calling OpenAI.
 `npm run evaluate:ai` is an explicit live OpenAI smoke test and is not part of CI.
-`npm run bundle` updates the committed action bundle after runtime source changes.
+`npm run bundle` updates `dist/` after runtime source changes. `npm run verify:dist` builds a temporary copy and compares its complete file list and bytes against the working `dist/` directory, including generated changes you have yet to stage.
 
 ## Test And Coverage Boundaries
 
@@ -49,11 +49,11 @@ Use the PR template to keep these checks visible during review.
 
 Before tagging:
 
-1. Confirm `main` is clean and the latest Test, Release, and CodeQL runs are green.
+1. Choose an unused version. Check both Git tags and GitHub release drafts.
 2. Update `package.json`, `package-lock.json`, `CHANGELOG.md`, README release commands, examples, and docs that mention the release tag.
 3. Run `npm run release:check`.
-4. Create the tag, for example `git tag v0.7.1`.
-5. Push `main` and the tag together.
+4. Merge the release changes through the required pull request checks. Verify Test and CodeQL on the resulting `main` commit.
+5. Tag that commit using the version from `package.json` and push the tag. The Release workflow checks the version before packing the artifact.
 6. Confirm the GitHub release exists and is not a draft.
 7. Confirm the tag-triggered Release workflow and the push-triggered Test and CodeQL workflows all complete successfully.
 8. Confirm the release includes the packed `.tgz` asset, the `.sigstore.json` bundle asset, and a GitHub artifact attestation for that asset.

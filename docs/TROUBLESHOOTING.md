@@ -179,4 +179,6 @@ npm run bundle
 npm run ci
 ```
 
-If `verify:dist` reports differences, commit the updated `dist/index.js` and `dist/index.js.map` with the source changes.
+`verify:dist` lists missing, changed, or unexpected files in `dist/`. Run `npm run bundle`, remove any obsolete files named in the output, then rerun the check and include the resulting bundle changes in your commit.
+
+The Release workflow expects the `v`-prefixed version from `package.json` as its tag. Check that the tagged commit contains the intended version before publishing.

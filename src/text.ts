@@ -58,10 +58,13 @@ export function jaccardSimilarity(left: string, right: string): number {
   return intersection / union;
 }
 
-export function truncate(value: string, maxCharacters: number): string {
-  if (value.length <= maxCharacters) {
+export function truncate(value: string, maxCharacters: number, marker = "\n...[truncated]"): string {
+  const limit = Math.max(0, Math.floor(maxCharacters));
+  if (value.length <= limit) {
     return value;
   }
 
-  return `${value.slice(0, Math.max(0, maxCharacters - 20))}\n...[truncated]`;
+  const suffix = limit >= marker.length ? marker : "";
+  const prefix = value.slice(0, limit - suffix.length).replace(/[\uD800-\uDBFF]$/, "");
+  return `${prefix}${suffix}`;
 }
