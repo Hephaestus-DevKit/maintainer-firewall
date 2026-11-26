@@ -3,6 +3,25 @@ import { defaultConfig } from "../src/config.js";
 import { analyzeSubject } from "../src/rules.js";
 import type { IssueSubject, PullRequestSubject } from "../src/types.js";
 
+const pullRequest: PullRequestSubject = {
+  kind: "pull_request",
+  number: 42,
+  title: "Improve cache handling",
+  body: "Fixes #41 and updates cache invalidation behavior with tests.",
+  author: "contributor",
+  labels: [],
+  htmlUrl: "https://github.com/example/repo/pull/42",
+  draft: false,
+  baseRef: "main",
+  headRef: "cache",
+  changedFiles: []
+};
+
+const sectionConfig = {
+  ...defaultConfig,
+  pullRequest: { ...defaultConfig.pullRequest, requiredSections: ["Test plan"] }
+};
+
 describe("analyzeSubject", () => {
   it("flags thin issues without reproduction or environment", () => {
     const issue: IssueSubject = {
@@ -24,6 +43,29 @@ describe("analyzeSubject", () => {
       "issue.environment.missing"
     ]);
     expect(findings.map((finding) => finding.suggestion).join(" ")).toContain("Please add");
+  });
+
+  it("requires visible issue evidence beyond empty template headings and instructions", () => {
+    const issue: IssueSubject = {
+      kind: "issue",
+      number: 12,
+      title: "It crashes",
+      body: "## Reproduction\n<!-- Paste exact steps here. -->\n\n## Environment\n<!-- Include the browser version. -->",
+      author: "contributor",
+      labels: [],
+      htmlUrl: "https://github.com/example/repo/issues/12",
+      duplicateCandidates: []
+    };
+
+    expect(analyzeSubject(issue, defaultConfig).map(({ id }) => id)).toEqual([
+      "issue.body.too_short", "issue.reproduction.missing", "issue.environment.missing"
+    ]);
+
+    const completed = {
+      ...issue,
+      body: "## Reproduction\n```sh\n./start.sh\n```\n\n## Environment\nUbuntu 24.04"
+    };
+    expect(analyzeSubject(completed, defaultConfig).map(({ id }) => id)).toEqual(["issue.body.too_short"]);
   });
 
   it("flags PRs with code changes and no tests", () => {
@@ -89,6 +131,21 @@ describe("analyzeSubject", () => {
     expect(findings.map((finding) => finding.id)).not.toContain("pr.tests.missing");
   });
 
+  it.each([
+    ["parser.go", "parser_test.go"],
+    ["parser.py", "test_parser.py"],
+    ["parser.py", "parser_test.py"]
+  ])("recognizes colocated tests for %s in %s", (source, test) => {
+    const pr = {
+      ...pullRequest,
+      changedFiles: [source, test].map((filename) => ({
+        filename: `src/${filename}`, status: "modified", additions: 3, deletions: 1, changes: 4
+      }))
+    };
+
+    expect(analyzeSubject(pr, defaultConfig).map(({ id }) => id)).not.toContain("pr.tests.missing");
+  });
+
   it("does not count deleted test files as test coverage for code changes", () => {
     const pr: PullRequestSubject = {
       kind: "pull_request",
@@ -150,6 +207,21 @@ describe("analyzeSubject", () => {
     const findings = analyzeSubject(pr, defaultConfig);
 
     expect(findings.map((finding) => finding.id)).toContain("pr.tests.missing");
+  });
+
+  it("checks both names of renamed sensitive paths and avoids a missing test warning on a partial file list", () => {
+    const pr: PullRequestSubject = {
+      ...pullRequest,
+      changedFiles: [{ filename: "src/check.cjs", status: "renamed", previousFilename: ".github/workflows/check.yml", additions: 1, deletions: 1, changes: 2 }]
+    };
+
+    const complete = analyzeSubject(pr, defaultConfig);
+    expect(complete.map(({ id }) => id)).toContain("pr.tests.missing");
+    expect(complete.find(({ id }) => id === "pr.sensitive_paths.changed")?.details).toContain(".github/workflows/check.yml");
+
+    const partial = analyzeSubject({ ...pr, changedFilesComplete: false }, defaultConfig);
+    expect(partial.map(({ id }) => id)).not.toContain("pr.tests.missing");
+    expect(partial.map(({ id }) => id)).toContain("pr.sensitive_paths.changed");
   });
 
   it("routes possible security reports to security review", () => {
@@ -291,6 +363,39 @@ describe("analyzeSubject", () => {
     const findings = analyzeSubject(pr, config);
 
     expect(findings.map((finding) => finding.id)).toContain("pr.required_sections.missing");
+  });
+
+  it.each([
+    "<!-- Insert enough detail to explain the scope and coverage.\n## Test plan\nFixes #12\n-->",
+    "````md\n```\n## Test plan\nFixes #12\n````",
+    "~~~~md\n~~~~ trailing prose\n## Test plan\nFixes #12\n~~~~"
+  ])("ignores template matches inside comments and fences: %s", (body) => {
+    const findings = analyzeSubject({ ...pullRequest, body }, sectionConfig);
+
+    expect(findings.map(({ id }) => id)).toEqual([
+      "pr.body.too_short", "pr.required_sections.missing", "pr.linked_issue.missing"
+    ]);
+  });
+
+  it.each(["owner/repo#12", "https://github.com/owner/repo/issues/12", "[tracked elsewhere](https://github.com/owner/repo/issues/12)"])(
+    "accepts an issue reference without a closing keyword: %s",
+    (reference) => {
+      const body = `See ${reference}\n\n## Test plan ###\n\nRan npm test.`;
+      const findings = analyzeSubject({ ...pullRequest, body }, sectionConfig);
+
+      expect(findings.map(({ id }) => id)).not.toContain("pr.linked_issue.missing");
+      expect(findings.map(({ id }) => id)).not.toContain("pr.required_sections.missing");
+    }
+  );
+
+  it("accepts a configured field label that contains a colon", () => {
+    const pr = { ...pullRequest, body: "Test plan: Parser: ran npm test." };
+    const config = {
+      ...sectionConfig,
+      pullRequest: { ...sectionConfig.pullRequest, requiredSections: ["Test plan: Parser"] }
+    };
+
+    expect(analyzeSubject(pr, config).map(({ id }) => id)).not.toContain("pr.required_sections.missing");
   });
 
   it("does not treat markdown issue-number headings as linked issues", () => {

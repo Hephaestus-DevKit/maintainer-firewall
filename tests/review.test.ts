@@ -86,10 +86,32 @@ describe("createReviewSummary", () => {
       }
     ];
 
-    const summary = createReviewSummary(subject, findings, defaultConfig);
+    const summary = createReviewSummary(issueSubject, findings, defaultConfig);
 
-    expect(summary.nextSteps[0]).toBe("Please add the missing context: a minimal reproduction, relevant versions, and expected versus actual behavior.");
+    expect(summary.nextSteps[0]).toBe("Please add a minimal reproduction, exact steps, commands, or expected versus actual behavior.");
     expect(summary.nextSteps.join(" ")).not.toContain("Ask ");
+  });
+
+  it("asks PR authors for the information their own findings identify", () => {
+    const summary = createReviewSummary(subject, [
+      testFinding({ id: "pr.body.too_short", label: "needsInfo" }),
+      testFinding({ id: "pr.required_sections.missing", label: "needsInfo" })
+    ], defaultConfig);
+
+    expect(summary.outcome).toBe("needs_info");
+    expect(summary.nextSteps).toEqual([
+      "Please add the motivation, approach, test plan, and any review notes.",
+      "Please fill out the missing template sections before review continues."
+    ]);
+  });
+
+  it("routes other warning findings to a maintainer and keeps their suggested action", () => {
+    const summary = createReviewSummary(subject, [
+      testFinding({ id: "ai.uncovered_change", label: "maintainerReview", source: "ai", suggestion: "Review the parser migration." })
+    ], defaultConfig);
+
+    expect(summary.outcome).toBe("needs_maintainer_review");
+    expect(summary.nextSteps).toContain("Review the parser migration.");
   });
 
   it("blocks on errors and floors the score at zero", () => {
@@ -253,6 +275,31 @@ describe("createReviewSummary", () => {
     expect(summary.passedChecks).toContain("Reproduction signal found");
     expect(summary.passedChecks).toContain("No likely duplicate found");
     expect(summary.passedChecks).not.toContain("Environment signal found");
+  });
+
+  it("omits passing checks for disabled groups and explicitly disabled findings", () => {
+    const groupsDisabled = {
+      ...defaultConfig,
+      issue: { ...defaultConfig.issue, enabled: false },
+      pullRequest: { ...defaultConfig.pullRequest, enabled: false }
+    };
+    expect(createReviewSummary(issueSubject, [], groupsDisabled).passedChecks).toEqual([]);
+    expect(createReviewSummary(subject, [], groupsDisabled).passedChecks).toEqual([]);
+
+    const ruleDisabled = {
+      ...defaultConfig,
+      rules: { ...defaultConfig.rules, disabled: ["issue.reproduction.missing"] }
+    };
+    expect(createReviewSummary(issueSubject, [], ruleDisabled).passedChecks).not.toContain("Reproduction signal found");
+  });
+
+  it("keeps body-check passes when GitHub data is incomplete and omits file- or search-based passes", () => {
+    const issue = createReviewSummary({ ...issueSubject, duplicateSearchComplete: false }, [], defaultConfig);
+    expect(issue.passedChecks).toContain("Reproduction signal found");
+    expect(issue.passedChecks).not.toContain("No likely duplicate found");
+
+    const pr = createReviewSummary({ ...subject, changedFilesComplete: false }, [], defaultConfig);
+    expect(pr.passedChecks).toEqual(["PR description has enough detail", "Issue link or reference found"]);
   });
 });
 

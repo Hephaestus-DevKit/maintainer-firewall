@@ -13,33 +13,7 @@ Start a pilot only when the target repository has:
 
 ## Day 0 Setup
 
-Install audit mode with read permissions and JSON artifacts:
-
-```yaml
-name: Maintainer Firewall
-
-on:
-  issues:
-    types: [opened, edited, reopened]
-  pull_request:
-    types: [opened, edited, synchronize, reopened, ready_for_review]
-
-permissions:
-  contents: read
-  issues: read
-  pull-requests: read
-
-jobs:
-  firewall:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: Hephaestus-DevKit/maintainer-firewall@v0.7.1
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          dry-run: true
-          report-json-path: reports/maintainer-firewall.json
-          effective-config-json-path: reports/maintainer-firewall-effective-config.json
-```
+Copy [the metrics workflow](../examples/workflow.metrics.yml) into `.github/workflows/`. On an issue or pull request event it runs in read-only audit mode and uploads the review report and effective configuration as the `maintainer-firewall-reports` artifact.
 
 Confirm on the first run:
 

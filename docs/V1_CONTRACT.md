@@ -186,7 +186,7 @@ Maintainer Firewall identifies its own comments with:
 <!-- maintainer-firewall:report -->
 ```
 
-This marker must not change within v1 because it prevents duplicate report comments.
+The first line of a managed comment carries this marker. Before updating the comment, the action verifies that its author matches the authenticated GitHub account. A repeat run with identical text skips the update.
 
 ## Finding Policy
 

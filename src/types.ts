@@ -65,6 +65,7 @@ export interface DuplicateCandidate {
 
 export interface ChangedFile {
   filename: string;
+  previousFilename?: string;
   status: string;
   additions: number;
   deletions: number;
@@ -80,6 +81,7 @@ export interface IssueSubject {
   labels: string[];
   htmlUrl: string;
   duplicateCandidates: DuplicateCandidate[];
+  duplicateSearchComplete?: boolean;
 }
 
 export interface PullRequestSubject {
@@ -94,6 +96,7 @@ export interface PullRequestSubject {
   baseRef: string;
   headRef: string;
   changedFiles: ChangedFile[];
+  changedFilesComplete?: boolean;
 }
 
 export type Subject = IssueSubject | PullRequestSubject;

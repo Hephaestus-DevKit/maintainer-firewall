@@ -3,8 +3,8 @@
 Maintainer Firewall works without AI. Optional OpenAI analysis is advisory and runs only when all of these are true:
 
 - `.maintainer-firewall.yml` sets `ai.enabled: true`.
-- The action receives `openai-api-key`.
-- Deterministic checks did not produce `content.secret.possible`.
+- The action receives `openai-api-key` or the runner provides `OPENAI_API_KEY`.
+- Neither the title nor the body matches a configured credential pattern. This check also applies when deterministic Issue, PR, or security findings are disabled.
 
 ## Data Sent When AI Runs
 
@@ -15,18 +15,18 @@ The prompt can include:
 - Duplicate candidates for issues.
 - Loaded repository guidance content from configured guidance paths.
 
-Before prompt construction, configured `security.secretPatterns` are applied to subject text and loaded guidance content. The prompt is then truncated to `ai.maxInputCharacters`.
+Before prompt construction, configured `security.secretPatterns` are applied to subject metadata and to guidance paths and content. Long inputs are shortened to `ai.maxInputCharacters` while preserving the JSON structure and retaining space for repository context. When only part of the file list fits, the prompt marks it incomplete and the action discards AI findings labeled `needsTests`.
 
-## Data Not Sent
+## Data Excluded From the Prompt
 
-Maintainer Firewall does not send:
+The API key authenticates the HTTPS request. The model prompt excludes the following data.
 
 - The GitHub token.
 - The OpenAI API key.
-- Full repository source code.
+- Source files outside the configured repository guidance paths.
 - Checked-out pull request code.
 - Report JSON or effective-config JSON artifacts.
-- Raw possible credential values when `content.secret.possible` fires, because AI is skipped in that case.
+- Subject titles and bodies that match configured credential patterns, because AI is skipped in that case.
 
 ## Output Handling
 
@@ -44,7 +44,7 @@ Run the live AI smoke test only when you intentionally want to call OpenAI:
 OPENAI_API_KEY=... npm run evaluate:ai
 ```
 
-The script runs only fixtures marked AI-eligible and checks normalized AI output shape. It is not part of CI or marketplace checks.
+The script runs only fixtures marked AI-eligible. It checks normalized AI output shape and fails when an API call or response produces a runtime warning. It runs separately from CI and marketplace checks.
 
 ## Rollout Recommendation
 

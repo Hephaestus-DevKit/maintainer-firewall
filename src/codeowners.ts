@@ -1,5 +1,5 @@
 import * as core from "@actions/core";
-import { minimatch } from "minimatch";
+import { Minimatch } from "minimatch";
 import type * as github from "@actions/github";
 import { getErrorMessage, getErrorStatus } from "./errors.js";
 import type { FirewallConfig, PullRequestSubject, RoutingHint } from "./types.js";
@@ -8,9 +8,12 @@ import type { RuntimeWarningSink } from "./run-diagnostics.js";
 type Octokit = ReturnType<typeof github.getOctokit>;
 
 interface CodeOwnerRule {
-  pattern: string;
+  matchers: Minimatch[];
   owners: string[];
 }
+
+const HANDLE = /^@[a-z0-9_-]+(?:\/[a-z0-9_-]+)?$/i;
+const OWNER_EMAIL = /^[^\s@]+@[^\s@]+$/;
 
 export async function loadCodeOwnerHints(
   octokit: Octokit,
@@ -21,6 +24,10 @@ export async function loadCodeOwnerHints(
   subject: PullRequestSubject,
   warningSink: RuntimeWarningSink = (message) => core.warning(message)
 ): Promise<RoutingHint[]> {
+  if (subject.changedFiles.length === 0) {
+    return [];
+  }
+
   const content = await loadFirstCodeOwnersFile(octokit, owner, repo, ref, config.repository.codeOwnersPaths, warningSink);
   if (!content) {
     return [];
@@ -31,51 +38,48 @@ export async function loadCodeOwnerHints(
     return [];
   }
 
-  const ownerToFiles = new Map<string, string[]>();
+  const ownerToFiles = new Map<string, Set<string>>();
   for (const file of subject.changedFiles) {
-    const ownersForFile = ownersForPath(file.filename, rules);
-    for (const ownerName of ownersForFile) {
-      const files = ownerToFiles.get(ownerName) ?? [];
-      files.push(file.filename);
-      ownerToFiles.set(ownerName, files);
+    const paths = file.previousFilename ? [file.filename, file.previousFilename] : [file.filename];
+    for (const path of paths) {
+      for (const ownerName of ownersForPath(path, rules)) {
+        const files = ownerToFiles.get(ownerName) ?? new Set<string>();
+        files.add(path);
+        ownerToFiles.set(ownerName, files);
+      }
     }
   }
 
   return [...ownerToFiles.entries()]
+    .sort(([, left], [, right]) => right.size - left.size)
+    .slice(0, 5)
     .map(([ownerName, files]) => ({
       owner: ownerName,
-      files: files.slice(0, 5)
-    }))
-    .sort((left, right) => right.files.length - left.files.length)
-    .slice(0, 5);
+      files: [...files].slice(0, 5)
+    }));
 }
 
 export function parseCodeOwners(content: string): CodeOwnerRule[] {
-  return content
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith("#"))
-    .map((line) => {
-      const parts = line.split(/\s+/);
-      const pattern = parts[0];
-      const owners = parts.slice(1).filter((part) => part.startsWith("@"));
-
-      if (!pattern || owners.length === 0) {
-        return null;
-      }
-
-      return {
-        pattern,
-        owners
-      };
-    })
-    .filter((rule): rule is CodeOwnerRule => Boolean(rule));
+  const rules: CodeOwnerRule[] = [];
+  for (const line of content.split(/\r?\n/)) {
+    const [pattern, ...owners] = line.split(/(?:^|\s)#/, 1)[0]?.trim().split(/\s+/) ?? [];
+    if (!pattern || pattern.startsWith("!") || pattern.startsWith("\\#") ||
+        owners.some((owner) => !HANDLE.test(owner) && !OWNER_EMAIL.test(owner))) {
+      continue;
+    }
+    const matchers = compileCodeOwnerPattern(pattern);
+    if (matchers.length > 0) {
+      // An empty owner list clears a previous match. Email owners stay out of hints.
+      rules.push({ matchers, owners: [...new Set(owners.filter((owner) => HANDLE.test(owner)))] });
+    }
+  }
+  return rules;
 }
 
 export function ownersForPath(path: string, rules: CodeOwnerRule[]): string[] {
   for (let index = rules.length - 1; index >= 0; index -= 1) {
     const rule = rules[index];
-    if (rule && matchesCodeOwnerPattern(path, rule.pattern)) {
+    if (rule?.matchers.some((matcher) => matcher.match(path))) {
       return rule.owners;
     }
   }
@@ -100,7 +104,11 @@ async function loadFirstCodeOwnersFile(
         ref
       });
 
-      if (!Array.isArray(response.data) && response.data.type === "file" && response.data.content) {
+      if (!Array.isArray(response.data) && response.data.type === "file") {
+        if (response.data.encoding === "none") {
+          warningSink(`GitHub did not return the contents of CODEOWNERS at ${path}.`);
+          return null;
+        }
         core.info(`Loaded CODEOWNERS routing hints from ${response.data.path}.`);
         return Buffer.from(response.data.content, "base64").toString("utf8");
       }
@@ -115,37 +123,28 @@ async function loadFirstCodeOwnersFile(
   return null;
 }
 
-function matchesCodeOwnerPattern(path: string, pattern: string): boolean {
-  const normalizedPath = path.replace(/\\/g, "/");
-  const normalizedPattern = pattern.replace(/\\/g, "/").replace(/^\/+/, "");
-  const globs = expandCodeOwnerPattern(normalizedPattern);
-
-  return globs.some((glob) => minimatch(normalizedPath, glob, { dot: true }));
-}
-
-function expandCodeOwnerPattern(pattern: string): string[] {
-  const withoutTrailingSlash = pattern.replace(/\/+$/, "");
-  if (!withoutTrailingSlash) {
+function compileCodeOwnerPattern(pattern: string): Minimatch[] {
+  const directoryOnly = pattern.endsWith("/");
+  const path = pattern.replace(/^\/+|\/+$/g, "");
+  if (!path) {
     return [];
   }
 
-  if (pattern.endsWith("/")) {
-    return [
-      `${withoutTrailingSlash}/**`
-    ];
+  const rooted = pattern.startsWith("/") || path.includes("/");
+  const glob = `${rooted ? "" : "**/"}${path.replace(/[\[\]]/g, "\\$&")}`;
+  const globs = directoryOnly ? [] : [glob];
+  const basename = path.split("/").at(-1) ?? "";
+  if (directoryOnly || !/[*?]/.test(basename)) {
+    globs.push(`${glob}/**`);
   }
-
-  if (!withoutTrailingSlash.includes("/")) {
-    return [
-      withoutTrailingSlash,
-      `**/${withoutTrailingSlash}`
-    ];
-  }
-
-  return [
-    withoutTrailingSlash,
-    `${withoutTrailingSlash}/**`
-  ];
+  return globs.map((value) => new Minimatch(value, {
+    dot: true,
+    nobrace: true,
+    nocomment: true,
+    noext: true,
+    nonegate: true,
+    platform: "linux"
+  }));
 }
 
 

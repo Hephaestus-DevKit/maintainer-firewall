@@ -13,7 +13,7 @@ inputs:
     required: false
     default: .maintainer-firewall.yml
   dry-run:
-    description: When true, produces reports and outputs without writing labels, comments, or stale-label removals.
+    description: When true, produces reports and outputs without posting comments, applying labels, or removing stale labels.
     required: false
     default: "false"
   fail-on-findings:
@@ -36,9 +36,9 @@ inputs:
     required: false
 outputs:
   outcome:
-    description: Review-readiness outcome such as ready, needs_info, needs_tests, needs_maintainer_review, blocked, or skipped.
+    description: One of ready, needs_info, needs_tests, needs_maintainer_review, possible_duplicate, blocked, or skipped.
   score:
-    description: Review-readiness score from 0 to 100.
+    description: Review-readiness score from 0 to 100, or an empty string when skipped.
   findings-count:
     description: Number of findings produced by enabled checks.
   labels:

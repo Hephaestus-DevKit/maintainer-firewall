@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFile } from "node:child_process";
@@ -42,8 +42,19 @@ describe("metrics summary script", () => {
         version: 1,
         enabledChecks: {}
       }), "utf8");
+      await writeFile(join(tempDir, "truncated.json"), '{"version": 1, "findings":', "utf8");
+      await writeFile(join(tempDir, "invalid-report.json"), JSON.stringify({
+        version: 1,
+        skipped: false,
+        findings: [null]
+      }), "utf8");
+      if (process.platform !== "win32") {
+        await symlink(tempDir, join(tempDir, "loop"), "dir");
+      }
 
-      const { stdout } = await execFileAsync("node", ["scripts/summarize-metrics.mjs", tempDir], {
+      const { stdout } = await execFileAsync(process.execPath, [
+        "scripts/summarize-metrics.mjs", tempDir, join(tempDir, "one.json")
+      ], {
         cwd: process.cwd()
       });
       const summary = JSON.parse(stdout);
@@ -67,7 +78,11 @@ describe("metrics summary script", () => {
         configWarnings: 1,
         runtimeWarnings: 1
       });
-      expect(summary.ignoredFiles).toContain(join(tempDir, "effective-config.json"));
+      expect(summary.ignoredFiles).toEqual([
+        join(tempDir, "effective-config.json"),
+        join(tempDir, "invalid-report.json"),
+        join(tempDir, "truncated.json")
+      ]);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
@@ -82,7 +97,7 @@ describe("metrics summary script", () => {
         enabledChecks: {}
       }), "utf8");
 
-      await expect(execFileAsync("node", ["scripts/summarize-metrics.mjs", tempDir], {
+      await expect(execFileAsync(process.execPath, ["scripts/summarize-metrics.mjs", tempDir], {
         cwd: process.cwd()
       })).rejects.toMatchObject({
         stdout: expect.stringContaining('"reports": 0'),

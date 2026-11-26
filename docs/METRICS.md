@@ -18,7 +18,7 @@ Useful rollout metrics:
 
 Set `report-json-path` and upload the report as an artifact. During rollout, also set `effective-config-json-path` so maintainers can confirm active thresholds and surfaces without reading source code.
 
-See [`examples/workflow.metrics.yml`](../examples/workflow.metrics.yml) for a workflow that writes both JSON files, uploads them, and prints a compact metrics line.
+See [`examples/workflow.metrics.yml`](../examples/workflow.metrics.yml) for a workflow that uploads available JSON reports and prints a compact metrics line when the review report is present. Its separate concurrency group lets it run alongside the main triage workflow.
 
 For local aggregation, download one or more report artifacts and run:
 
@@ -26,7 +26,7 @@ For local aggregation, download one or more report artifacts and run:
 npm run metrics:summary -- reports/
 ```
 
-The summary script counts reports, skipped runs, outcomes, findings by ID and severity, labels, configuration warnings, and runtime warnings. It ignores effective-config JSON files and exits non-zero when no valid report payloads are found.
+The summary script counts reports, skipped runs, outcomes, findings by ID and severity, labels, configuration warnings, and runtime warnings. It lists malformed files and other JSON documents in `ignoredFiles`. Overlapping input paths count a report once. The script exits non-zero when no valid report payloads are found.
 
 ## Calibration Labels
 

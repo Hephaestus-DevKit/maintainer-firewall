@@ -42,8 +42,8 @@ repository:
     - ".github/ISSUE_TEMPLATE.md"
     - ".github/ISSUE_TEMPLATE"
   codeOwnersPaths:
-    - "CODEOWNERS"
     - ".github/CODEOWNERS"
+    - "CODEOWNERS"
     - "docs/CODEOWNERS"
   maxGuidanceCharacters: 16000
 

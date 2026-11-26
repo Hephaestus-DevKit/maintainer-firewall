@@ -1,13 +1,15 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
-const inputs = process.argv.slice(2);
-
-if (inputs.length === 0) {
-  console.error("Usage: node scripts/summarize-metrics.mjs <report-json-file-or-directory> [...]");
-  process.exitCode = 2;
-} else {
-  const files = inputs.flatMap((input) => collectJsonFiles(input));
+function run(inputs) {
+  if (inputs.length === 0) {
+    console.error("Usage: node scripts/summarize-metrics.mjs <report-json-file-or-directory> [...]");
+    process.exitCode = 2;
+    return;
+  }
+  const visited = new Set();
+  const files = inputs.flatMap((input) => collectJsonFiles(input, visited));
   if (files.length === 0) {
     console.error("No JSON report files found.");
     process.exitCode = 2;
@@ -21,14 +23,18 @@ if (inputs.length === 0) {
   }
 }
 
+if (process.argv[1] && pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url) {
+  run(process.argv.slice(2));
+}
+
 export function summarizeReports(files) {
   const summary = {
     reports: 0,
     skipped: 0,
-    outcomes: {},
-    findingsById: {},
-    findingsBySeverity: {},
-    labels: {},
+    outcomes: Object.create(null),
+    findingsById: Object.create(null),
+    findingsBySeverity: Object.create(null),
+    labels: Object.create(null),
     configWarnings: 0,
     runtimeWarnings: 0,
     ignoredFiles: []
@@ -46,7 +52,8 @@ export function summarizeReports(files) {
       summary.skipped += 1;
     }
 
-    increment(summary.outcomes, payload.summary?.outcome ?? (payload.skipped ? "skipped" : "unknown"));
+    const outcome = typeof payload.summary?.outcome === "string" ? payload.summary.outcome : undefined;
+    increment(summary.outcomes, outcome ?? (payload.skipped ? "skipped" : "unknown"));
     for (const finding of payload.findings) {
       increment(summary.findingsById, finding.id);
       increment(summary.findingsBySeverity, finding.severity);
@@ -55,37 +62,48 @@ export function summarizeReports(files) {
       }
     }
 
-    summary.configWarnings += payload.diagnostics?.configWarnings?.length ?? 0;
-    summary.runtimeWarnings += payload.diagnostics?.runtimeWarnings?.length ?? 0;
+    summary.configWarnings += warningCount(payload.diagnostics?.configWarnings);
+    summary.runtimeWarnings += warningCount(payload.diagnostics?.runtimeWarnings);
   }
 
   return summary;
 }
 
-function collectJsonFiles(input) {
+function collectJsonFiles(input, visited) {
   const status = statSync(input, { throwIfNoEntry: false });
   if (!status) {
     return [];
   }
 
   if (status.isFile()) {
-    return input.endsWith(".json") ? [input] : [];
+    if (!input.endsWith(".json") || !visit(input, visited)) {
+      return [];
+    }
+    return [input];
   }
 
-  if (!status.isDirectory()) {
+  if (!status.isDirectory() || !visit(input, visited)) {
     return [];
   }
 
-  const output = [];
-  for (const entry of readdirSync(input)) {
-    output.push(...collectJsonFiles(join(input, entry)));
-  }
+  return readdirSync(input).sort().flatMap((entry) => collectJsonFiles(join(input, entry), visited));
+}
 
-  return output;
+function visit(input, visited) {
+  const canonical = realpathSync(input);
+  if (visited.has(canonical)) {
+    return false;
+  }
+  visited.add(canonical);
+  return true;
 }
 
 function readJson(file) {
-  return JSON.parse(readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
+  try {
+    return JSON.parse(readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
+  } catch {
+    return undefined;
+  }
 }
 
 function isReportPayload(payload) {
@@ -93,8 +111,17 @@ function isReportPayload(payload) {
     payload &&
     payload.version === 1 &&
     typeof payload.skipped === "boolean" &&
-    Array.isArray(payload.findings)
+    Array.isArray(payload.findings) &&
+    payload.findings.every((finding) => (
+      typeof finding?.id === "string" &&
+      typeof finding.severity === "string" &&
+      (finding.label === undefined || typeof finding.label === "string")
+    ))
   );
+}
+
+function warningCount(warnings) {
+  return Array.isArray(warnings) ? warnings.filter((warning) => typeof warning === "string").length : 0;
 }
 
 function increment(record, key) {

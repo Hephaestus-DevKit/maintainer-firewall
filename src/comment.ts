@@ -10,7 +10,8 @@ export function composeReport(
   config: FirewallConfig,
   summary: ReviewSummary
 ): string {
-  const title = config.comment.header;
+  const redact = (value: string) => redactByPatterns(value, config.security.secretPatterns);
+  const title = escapeMarkdownLine(redact(config.comment.header));
   const safeFindings = findings.map((finding) => redactFinding(finding, config.security.secretPatterns));
   const safeSummary = redactReviewSummary(summary, config.security.secretPatterns);
   const visibleFindings = safeFindings.slice(0, config.comment.maxFindings);
@@ -22,7 +23,7 @@ export function composeReport(
     `**Outcome:** ${outcomeLabel(safeSummary.outcome)}`,
     `**Review readiness:** ${safeSummary.score}/100`,
     "",
-    `Subject: [${subject.kind === "issue" ? "Issue" : "Pull request"} #${subject.number}](${subject.htmlUrl})`,
+    `Subject: [${subject.kind === "issue" ? "Issue" : "Pull request"} #${subject.number}](${redact(subject.htmlUrl)})`,
     "",
     safeSummary.headline,
     ""
@@ -80,16 +81,19 @@ export function composeReport(
 }
 
 export function composeSkippedReport(subject: Subject | null, skipReason: string, config: FirewallConfig): string {
-  const safeSkipReason = escapeMarkdownLine(redactByPatterns(skipReason, config.security.secretPatterns));
+  const redactLine = (value: string) => escapeMarkdownLine(redactByPatterns(value, config.security.secretPatterns));
+  const safeSkipReason = redactLine(skipReason);
   const lines = [
     MARKER,
-    `## ${config.comment.header}`,
+    `## ${redactLine(config.comment.header)}`,
     "",
     subject
       ? `Skipped ${subject.kind === "issue" ? "issue" : "pull request"} #${subject.number}: ${safeSkipReason}.`
       : `Skipped: ${safeSkipReason}.`,
     "",
-    "_Maintainer Firewall skipped this subject because an ignore rule matched._"
+    subject
+      ? "_Maintainer Firewall skipped this subject because an ignore rule matched._"
+      : "_Maintainer Firewall skipped this workflow event._"
   ];
 
   return lines.join("\n");

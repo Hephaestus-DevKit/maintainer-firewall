@@ -16,7 +16,7 @@ Maintainer Firewall is easiest to adopt when rollout mode is explicit. Start qui
 Use this first. It is read-only and writes the report to the Actions step summary.
 
 ```yaml
-- uses: Hephaestus-DevKit/maintainer-firewall@v0.7.1
+- uses: Hephaestus-DevKit/maintainer-firewall@v0.7.2
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
     dry-run: true
@@ -31,14 +31,14 @@ permissions:
   pull-requests: read
 ```
 
-Use [examples/workflow.audit.yml](../examples/workflow.audit.yml).
+Use [the audit workflow](../examples/workflow.audit.yml). To refresh the summary when a maintainer changes a skip label, add `labeled` and `unlabeled` to its issue and pull request event types.
 
 ## Advisory Mode
 
 Use this when contributor-facing comments are useful but labels should remain under maintainer control.
 
 ```yaml
-- uses: Hephaestus-DevKit/maintainer-firewall@v0.7.1
+- uses: Hephaestus-DevKit/maintainer-firewall@v0.7.2
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -61,7 +61,7 @@ Use [examples/workflow.advisory.yml](../examples/workflow.advisory.yml) and [exa
 Use this when labels should help maintainers scan the queue.
 
 ```yaml
-- uses: Hephaestus-DevKit/maintainer-firewall@v0.7.1
+- uses: Hephaestus-DevKit/maintainer-firewall@v0.7.2
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -86,7 +86,7 @@ Use [examples/workflow.collaborative.yml](../examples/workflow.collaborative.yml
 Use this only after the rule set has been calibrated. It fails the workflow for warning or error findings.
 
 ```yaml
-- uses: Hephaestus-DevKit/maintainer-firewall@v0.7.1
+- uses: Hephaestus-DevKit/maintainer-firewall@v0.7.2
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
     emit-annotations: true

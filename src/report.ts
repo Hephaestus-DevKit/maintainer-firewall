@@ -44,7 +44,9 @@ export function createReportPayload(
   return {
     version: 1,
     skipped: Boolean(skipReason),
-    skipReason,
+    skipReason: skipReason === undefined
+      ? undefined
+      : redactByPatterns(skipReason, config.security.secretPatterns),
     subject: subject ? sanitizeSubject(subject, config) : undefined,
     summary: summary ? redactReviewSummary(summary, config.security.secretPatterns) : undefined,
     findings: findings.map((finding) => redactFinding(finding, config.security.secretPatterns)),
@@ -58,13 +60,14 @@ export async function writeReportJson(path: string, payload: ReportPayload): Pro
 }
 
 function sanitizeSubject(subject: Subject, config: FirewallConfig): NonNullable<ReportPayload["subject"]> {
+  const redact = (value: string) => redactByPatterns(value, config.security.secretPatterns);
   const base = {
     kind: subject.kind,
     number: subject.number,
-    title: redactByPatterns(subject.title, config.security.secretPatterns),
-    author: subject.author,
-    url: subject.htmlUrl,
-    labels: subject.labels.map((label) => redactByPatterns(label, config.security.secretPatterns))
+    title: redact(subject.title),
+    author: redact(subject.author),
+    url: redact(subject.htmlUrl),
+    labels: subject.labels.map(redact)
   };
 
   if (subject.kind === "issue") {
@@ -74,8 +77,8 @@ function sanitizeSubject(subject: Subject, config: FirewallConfig): NonNullable<
   return {
     ...base,
     changedFiles: subject.changedFiles.map((file) => ({
-      filename: redactByPatterns(file.filename, config.security.secretPatterns),
-      status: file.status,
+      filename: redact(file.filename),
+      status: redact(file.status),
       additions: file.additions,
       deletions: file.deletions
     }))

@@ -1,6 +1,6 @@
 {
   "name": "maintainer-firewall",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "A maintainer-first GitHub Action that filters noisy issues and pull requests by evidence, reproducibility, scope, and project-specific rules.",
   "type": "module",
   "main": "dist/index.js",
@@ -18,16 +18,16 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "bundle": "ncc build src/index.ts -o dist --source-map --license licenses.txt",
-    "ci": "npm run check && npm run evaluate && npm run verify:dist",
+    "bundle": "node scripts/bundle.mjs",
+    "ci": "npm run check && npm run evaluate && node scripts/market-check.mjs && npm run verify:dist",
     "demo": "npm run build && node scripts/demo.mjs",
     "evaluate": "npm run build && node scripts/evaluate.mjs",
     "evaluate:ai": "npm run build && node scripts/evaluate-ai.mjs",
     "metrics:summary": "node scripts/summarize-metrics.mjs",
     "coverage": "vitest run --coverage",
-    "market:check": "npm run ci && npm run coverage && npm run demo && npm audit --audit-level=moderate && npm pack --dry-run && node scripts/market-check.mjs",
-    "release:check": "npm run check && npm run coverage && npm run demo && npm run evaluate && npm run verify:dist && npm audit --audit-level=moderate",
-    "verify:dist": "npm run bundle && git diff --exit-code -- dist",
+    "market:check": "npm run release:check && npm pack --dry-run",
+    "release:check": "npm run ci && npm run coverage && npm run demo && npm audit --audit-level=moderate",
+    "verify:dist": "node scripts/bundle.mjs --verify",
     "test": "vitest run",
     "check": "npm run build && npm run test"
   },
@@ -51,16 +51,16 @@
   "dependencies": {
     "@actions/core": "^3.0.1",
     "@actions/github": "^9.1.1",
-    "minimatch": "^10.2.6",
+    "minimatch": "^11.0.9",
     "yaml": "^2.7.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
     "@vercel/ncc": "^0.38.3",
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.12",
     "fast-check": "^4.8.0",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.12"
   },
   "engines": {
     "node": ">=20"

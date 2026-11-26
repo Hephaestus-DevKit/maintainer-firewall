@@ -14,7 +14,13 @@ import { jaccardSimilarity, tokenize } from "./text.js";
 type Octokit = ReturnType<typeof github.getOctokit>;
 type GitHubContext = typeof github.context;
 const REPORT_MARKER = "<!-- maintainer-firewall:report -->";
+const MAX_PULL_REQUEST_FILES = 3000;
 const defaultWarningSink: RuntimeWarningSink = (message) => core.warning(message);
+interface ReportAuthor {
+  databaseId: number | null;
+  login: string;
+}
+const reportAuthors = new WeakMap<Octokit, ReportAuthor>();
 
 export async function buildSubject(
   octokit: Octokit,
@@ -31,7 +37,7 @@ export async function buildSubject(
       return null;
     }
 
-    const duplicateCandidates = await findDuplicateIssues(
+    const duplicates = await findDuplicateIssues(
       octokit,
       owner,
       repo,
@@ -49,7 +55,7 @@ export async function buildSubject(
       author: issue.user?.login ?? "unknown",
       labels: extractLabelNames(issue.labels),
       htmlUrl: issue.html_url,
-      duplicateCandidates
+      ...duplicates
     } satisfies IssueSubject;
   }
 
@@ -58,7 +64,7 @@ export async function buildSubject(
     isPullRequestPayload(payload)
   ) {
     const pullRequest = payload.pull_request;
-    const changedFiles = await listPullRequestFiles(octokit, owner, repo, pullRequest.number, warningSink);
+    const files = await listPullRequestFiles(octokit, owner, repo, pullRequest, warningSink);
 
     return {
       kind: "pull_request",
@@ -71,7 +77,7 @@ export async function buildSubject(
       draft: Boolean(pullRequest.draft),
       baseRef: pullRequest.base?.ref ?? "",
       headRef: pullRequest.head?.ref ?? "",
-      changedFiles
+      ...files
     } satisfies PullRequestSubject;
   }
 
@@ -82,27 +88,37 @@ async function listPullRequestFiles(
   octokit: Octokit,
   owner: string,
   repo: string,
-  pullNumber: number,
+  pullRequest: { number: number; changed_files?: number },
   warningSink: RuntimeWarningSink
-): Promise<ChangedFile[]> {
+): Promise<Pick<PullRequestSubject, "changedFiles" | "changedFilesComplete">> {
+  const { number: pullNumber, changed_files: expectedFiles } = pullRequest;
   try {
-    const changedFiles = await octokit.paginate(octokit.rest.pulls.listFiles, {
+    const response = await octokit.paginate(octokit.rest.pulls.listFiles, {
       owner,
       repo,
       pull_number: pullNumber,
       per_page: 100
     });
 
-    return changedFiles.map((file) => ({
+    const changedFiles = response.map((file) => ({
       filename: file.filename,
+      ...(file.previous_filename ? { previousFilename: file.previous_filename } : {}),
       status: file.status,
       additions: file.additions,
       deletions: file.deletions,
       changes: file.changes
     } satisfies ChangedFile));
+    const incomplete = expectedFiles === undefined
+      ? changedFiles.length >= MAX_PULL_REQUEST_FILES
+      : changedFiles.length !== expectedFiles;
+    if (incomplete) {
+      warningSink(`Could not confirm the complete file list for pull request #${pullNumber}. File-based checks may be incomplete.`);
+      return { changedFiles, changedFilesComplete: false };
+    }
+    return { changedFiles };
   } catch (error) {
     warningSink(`Could not list files for pull request #${pullNumber}: ${getErrorMessage(error)}. Continuing with title and body checks only.`);
-    return [];
+    return { changedFiles: [], changedFilesComplete: false };
   }
 }
 
@@ -110,12 +126,10 @@ export function getConfigRef(context: GitHubContext): string | undefined {
   const payload = context.payload as Record<string, unknown>;
 
   if (isPullRequestPayload(payload)) {
-    return payload.pull_request.base?.sha;
+    return payload.pull_request.base?.sha || payload.pull_request.base?.ref;
   }
 
-  return context.ref
-    ?.replace("refs/heads/", "")
-    .replace("refs/tags/", "");
+  return context.ref?.replace(/^refs\/(?:heads|tags)\//, "");
 }
 
 export async function applyLabels(
@@ -189,6 +203,9 @@ export async function upsertComment(
   const previous = await findReportComment(octokit, owner, repo, issueNumber);
 
   if (previous) {
+    if (previous.body === body) {
+      return;
+    }
     await octokit.rest.issues.updateComment({
       owner,
       repo,
@@ -236,16 +253,42 @@ async function findReportComment(
       page
     });
     const comments = response.data;
-    const reportComment = comments.find((comment) => comment.body?.includes(REPORT_MARKER));
-
-    if (reportComment) {
-      return reportComment;
+    const candidates = comments.filter((comment) =>
+      comment.user && comment.body?.split(/\r?\n/, 1)[0] === REPORT_MARKER
+    );
+    if (candidates.length > 0) {
+      const author = await getReportAuthor(octokit);
+      const reportComment = candidates.find((comment) =>
+        author.databaseId === null
+          ? comment.user?.login.toLowerCase() === author.login.toLowerCase()
+          : comment.user?.id === author.databaseId
+      );
+      if (reportComment) {
+        return reportComment;
+      }
     }
 
     if (comments.length < 100) {
       return undefined;
     }
   }
+}
+
+async function getReportAuthor(octokit: Octokit): Promise<ReportAuthor> {
+  const cached = reportAuthors.get(octokit);
+  if (cached) {
+    return cached;
+  }
+
+  // The GraphQL viewer also resolves GitHub App installation tokens used by Actions.
+  const { viewer } = await octokit.graphql<{ viewer: ReportAuthor | null }>(
+    "query MaintainerFirewallReportAuthor { viewer { databaseId login } }"
+  );
+  if (!viewer?.login) {
+    throw new Error("GitHub did not identify the account posting Maintainer Firewall reports.");
+  }
+  reportAuthors.set(octokit, viewer);
+  return viewer;
 }
 
 async function findDuplicateIssues(
@@ -256,24 +299,26 @@ async function findDuplicateIssues(
   title: string,
   limit: number,
   warningSink: RuntimeWarningSink
-): Promise<DuplicateCandidate[]> {
+): Promise<Pick<IssueSubject, "duplicateCandidates" | "duplicateSearchComplete">> {
   if (limit <= 0) {
-    return [];
+    return { duplicateCandidates: [] };
   }
 
-  const tokens = tokenize(title).slice(0, 6);
+  const tokens = [...new Set(tokenize(title))]
+    .filter((token) => token.length <= 30 && /^[\p{L}\p{N}]+$/u.test(token))
+    .slice(0, 6);
   if (tokens.length < 2) {
-    return [];
+    return { duplicateCandidates: [], duplicateSearchComplete: false };
   }
   const terms = tokens.join(" ");
 
   try {
     const response = await octokit.rest.search.issuesAndPullRequests({
       q: `repo:${owner}/${repo} is:issue in:title ${terms}`,
-      per_page: Math.min(limit + 1, 10)
+      per_page: Math.min(Math.floor(limit) + 1, 100)
     });
 
-    return response.data.items
+    const duplicateCandidates: DuplicateCandidate[] = response.data.items
       .filter((item) => item.number !== currentNumber)
       .map((item) => ({
         number: item.number,
@@ -284,9 +329,14 @@ async function findDuplicateIssues(
       .filter((candidate) => candidate.similarity >= 0.35)
       .sort((left, right) => right.similarity - left.similarity)
       .slice(0, limit);
+    if (response.data.incomplete_results) {
+      warningSink("GitHub did not complete the duplicate issue search. Additional matches may exist.");
+      return { duplicateCandidates, duplicateSearchComplete: false };
+    }
+    return { duplicateCandidates };
   } catch (error) {
     warningSink(`Duplicate issue search failed: ${error instanceof Error ? error.message : String(error)}`);
-    return [];
+    return { duplicateCandidates: [], duplicateSearchComplete: false };
   }
 }
 
@@ -319,7 +369,11 @@ async function ensureLabels(
           throw createError;
         }
 
-        core.info(`Label "${label}" already exists after a concurrent create attempt.`);
+        try {
+          await octokit.rest.issues.getLabel({ owner, repo, name: label });
+        } catch {
+          throw createError;
+        }
       }
     }
   }
@@ -386,6 +440,7 @@ function isPullRequestPayload(payload: Record<string, unknown>): payload is {
     body: string | null;
     html_url: string;
     draft?: boolean;
+    changed_files?: number;
     labels: unknown[];
     user?: { login?: string };
     base?: { ref?: string; sha?: string };

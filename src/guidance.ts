@@ -19,6 +19,7 @@ export async function loadRepositoryGuidance(
 ): Promise<RepositoryGuidanceDoc[]> {
   const docs: RepositoryGuidanceDoc[] = [];
   const seen = new Set<string>();
+  const requestedPaths = new Set<string>();
   let remainingCharacters = config.repository.maxGuidanceCharacters;
 
   if (remainingCharacters <= 0) {
@@ -30,7 +31,7 @@ export async function loadRepositoryGuidance(
       break;
     }
 
-    const loaded = await loadGuidancePath(octokit, owner, repo, ref, path, warningSink);
+    const loaded = await loadGuidancePath(octokit, owner, repo, ref, path, requestedPaths, warningSink);
     for (const doc of loaded) {
       if (remainingCharacters <= 0) {
         break;
@@ -77,8 +78,14 @@ async function loadGuidancePath(
   repo: string,
   ref: string | undefined,
   path: string,
+  requestedPaths: Set<string>,
   warningSink: RuntimeWarningSink
 ): Promise<RepositoryGuidanceDoc[]> {
+  if (requestedPaths.has(path)) {
+    return [];
+  }
+  requestedPaths.add(path);
+
   try {
     const response = await octokit.rest.repos.getContent({
       owner,
@@ -93,7 +100,7 @@ async function loadGuidancePath(
         .slice(0, 20);
 
       const nested = await Promise.all(
-        children.map((entry) => loadGuidancePath(octokit, owner, repo, ref, entry.path, warningSink))
+        children.map((entry) => loadGuidancePath(octokit, owner, repo, ref, entry.path, requestedPaths, warningSink))
       );
       return nested.flat();
     }

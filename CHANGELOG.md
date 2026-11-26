@@ -2,6 +2,15 @@
 
 All notable changes to Maintainer Firewall will be documented in this file.
 
+## 0.7.2 - Triage accuracy and release verification
+
+- Ignore hidden template comments when evaluating evidence. Recognize cross-repository issue references and co-located tests, and check both paths of a renamed file.
+- When GitHub returns partial results, retain dependent labels and report only the checks supported by the available evidence.
+- Update managed comments only after verifying their author. Skip writes when the text is identical.
+- Redact optional AI context, flag incomplete file lists, and retain valid JSON when the prompt is shortened.
+- Verify the committed Action bundle byte for byte. Publish the release archive alongside its attestation bundle.
+- Consolidate workflow examples by rollout mode and restore code-owner routing to the repository maintainer.
+
 ## 0.7.1 - Release Provenance and Example Hardening
 
 - Publishes tagged release assets with GitHub artifact attestations.

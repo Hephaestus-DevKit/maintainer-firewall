@@ -57,7 +57,7 @@ describe("loadRepositoryGuidance", () => {
     const octokit = {
       rest: {
         repos: {
-          getContent: async ({ path }: { path: string }) => {
+          getContent: vi.fn(async ({ path }: { path: string }) => {
             if (path === "CONTRIBUTING.md") {
               return fileResponse(path, "Please include tests.");
             }
@@ -84,7 +84,7 @@ describe("loadRepositoryGuidance", () => {
             }
 
             throw { status: 404 };
-          }
+          })
         }
       }
     };
@@ -93,7 +93,7 @@ describe("loadRepositoryGuidance", () => {
       ...defaultConfig,
       repository: {
         ...defaultConfig.repository,
-        guidancePaths: ["CONTRIBUTING.md", ".github/ISSUE_TEMPLATE"],
+        guidancePaths: ["CONTRIBUTING.md", ".github/ISSUE_TEMPLATE", ".github/ISSUE_TEMPLATE/bug_report.yml"],
         maxGuidanceCharacters: 1000
       }
     });
@@ -108,6 +108,7 @@ describe("loadRepositoryGuidance", () => {
         content: "name: Bug report"
       }
     ]);
+    expect(octokit.rest.repos.getContent).toHaveBeenCalledTimes(3);
   });
 
   it("respects the combined guidance character budget and warns on non-404 failures", async () => {
@@ -130,7 +131,7 @@ describe("loadRepositoryGuidance", () => {
       ...defaultConfig,
       repository: {
         ...defaultConfig.repository,
-        guidancePaths: ["CONTRIBUTING.md", "docs/CONTRIBUTING.md"],
+        guidancePaths: ["docs/CONTRIBUTING.md", "CONTRIBUTING.md"],
         maxGuidanceCharacters: 40
       }
     }, (warning) => warnings.push(warning));

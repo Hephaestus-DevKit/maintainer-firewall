@@ -9,16 +9,16 @@ Maintainer Firewall is built as a GitHub JavaScript Action with a small determin
 3. Build an issue or pull request subject from the GitHub event.
 4. Apply ignore rules.
 5. Run deterministic rules.
-6. Skip AI analysis if a possible secret is detected.
+6. Check the title and body against configured credential patterns before loading optional AI context.
 7. Load repository guidance and CODEOWNERS hints when needed.
 8. Run optional AI analysis with timeout, input truncation, output normalization, and redaction.
 9. Apply exact finding-ID policy for suppression and severity overrides.
 10. Create a review summary with outcome, score, next steps, labels, and routing hints.
 11. Redact report-facing and output-facing finding, summary, subject, and diagnostic fields.
 12. Record configuration and runtime diagnostics through the shared diagnostics channel.
-13. Write optional redacted effective-config JSON for rollout debugging.
-14. Set action outputs and optionally emit GitHub Actions annotations for findings.
-15. Write logs, optional labels, comments, JSON report, and final step summary.
+13. Emit logs and optional annotations, then apply labels and update comments when enabled.
+14. Write the optional redacted effective-config JSON, JSON report, and step summary.
+15. Set Action outputs and apply the configured failure policy.
 
 ## Design Principles
 
@@ -28,7 +28,7 @@ Maintainer Firewall is built as a GitHub JavaScript Action with a small determin
 - Possible credentials are not repeated in findings or structured reports.
 - The action does not check out pull request code.
 - Label and comment writes are best-effort so triage does not fail because of permission differences.
-- Pull request file listing and existing report comment lookup degrade to warnings so body/title triage can continue.
+- Partial or unavailable PR file and duplicate-search results degrade to warnings. The action continues with known evidence and preserves managed labels tied to incomplete checks.
 - Runtime warnings are captured, redacted, and surfaced through outputs, step summaries, and JSON reports.
 - Native workflow annotations are opt-in to keep the default experience low-noise.
 - The setup summary is kept out of issue and pull request comments so contributor-facing reports stay focused.

@@ -319,7 +319,8 @@ describe("analyzeWithAi", () => {
     expect(warnings[0]).toContain("OpenAI analysis failed:");
   });
 
-  it("returns no AI findings when the parsed findings field is absent", async () => {
+  it("reports an invalid findings payload when the field is absent", async () => {
+    const warning = vi.fn();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ output_text: JSON.stringify({}) })
@@ -331,37 +332,146 @@ describe("analyzeWithAi", () => {
         ...defaultConfig.ai,
         enabled: true
       }
-    }, "test-key")).resolves.toEqual([]);
+    }, "test-key", [], warning)).resolves.toEqual([]);
+    expect(warning).toHaveBeenCalledWith("OpenAI analysis returned an invalid findings payload.");
   });
 
-  it("redacts subject and guidance content before sending the prompt", async () => {
+  it.each([
+    "The logs contain sk-abc12345678901234567890.",
+    "-----BEGIN PRIVATE KEY-----"
+  ])("skips credential-bearing subjects even when issue rules are disabled (%s)", async (body) => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const config = {
+      ...defaultConfig,
+      issue: { ...defaultConfig.issue, enabled: false },
+      security: { ...defaultConfig.security, enabled: false },
+      ai: { ...defaultConfig.ai, enabled: true }
+    };
+
+    const findings = await analyzeWithAi({ ...subject, body }, config, "test-key");
+
+    expect(findings).toEqual([]);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("redacts metadata and keeps a long prompt valid JSON within the input budget", async () => {
     const secret = "sk-abc12345678901234567890";
     const fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        output_text: JSON.stringify({ findings: [] })
+        output_text: JSON.stringify({
+          findings: [{
+            id: "missing-tests",
+            severity: "warning",
+            title: "Add tests",
+            details: "No tests appeared in the supplied files.",
+            label: "needsTests"
+          }]
+        })
       })
     });
     vi.stubGlobal("fetch", fetch);
 
-    await analyzeWithAi({
-      ...subject,
-      body: `The logs contain ${secret}.`
+    const findings = await analyzeWithAi({
+      ...pullRequestSubject,
+      author: secret,
+      headRef: `branch-${secret}`,
+      body: 'Quoted "\\path" 🧪\n'.repeat(200),
+      changedFilesComplete: false,
+      changedFiles: [{
+        filename: `src/${secret}.ts`,
+        status: "modified",
+        additions: 10,
+        deletions: 0,
+        changes: 10
+      }]
     }, {
       ...defaultConfig,
       ai: {
         ...defaultConfig.ai,
-        enabled: true
+        enabled: true,
+        maxInputCharacters: 1000
       }
     }, "test-key", [
       {
-        path: "CONTRIBUTING.md",
-        content: `Do not paste ${secret}.`
+        path: `docs/${secret}.md`,
+        content: `Do not paste ${secret}.\n-----BEGIN PRIVATE KEY-----\nsynthetic-placeholder\n-----END PRIVATE KEY-----\nKeep this guidance.`
       }
     ]);
 
-    const requestBody = JSON.stringify(fetch.mock.calls[0]?.[1]);
-    expect(requestBody).not.toContain(secret);
-    expect(requestBody).toContain("[redacted]");
+    const request = JSON.parse(fetch.mock.calls[0]?.[1].body);
+    const input = request.input[1].content[0].text;
+    expect(findings).toEqual([]);
+    expect(input).not.toContain(secret);
+    expect(input).not.toContain("synthetic-placeholder");
+    expect(input.length).toBeLessThanOrEqual(1000);
+    expect(JSON.parse(input)).toMatchObject({
+      subject: {
+        kind: "pull_request",
+        author: "[redacted]",
+        headRef: "branch-[redacted]",
+        changedFilesComplete: false,
+        body: expect.stringContaining("Quoted"),
+        changedFiles: [{ filename: "src/[redacted].ts" }]
+      },
+      repositoryGuidance: "# docs/[redacted].md\nDo not paste [redacted].\n[redacted]\nKeep this guidance."
+    });
+  });
+
+  it("discards missing-test feedback when the prompt budget omits changed files", async () => {
+    const fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ output_text: JSON.stringify({
+        findings: [{ title: "Add tests", details: "No tests in the supplied list.", label: "needsTests" }]
+      }) })
+    });
+    vi.stubGlobal("fetch", fetch);
+    const changedFiles = Array.from({ length: 40 }, (_, i) => ({
+      ...pullRequestSubject.changedFiles[0]!,
+      filename: `src/module-${i}.ts`
+    }));
+    const findings = await analyzeWithAi({ ...pullRequestSubject, changedFiles }, {
+      ...defaultConfig,
+      ai: { ...defaultConfig.ai, enabled: true, maxInputCharacters: 1000 }
+    }, "test-key");
+
+    const input = JSON.parse(fetch.mock.calls[0]![1].body).input[1].content[0].text;
+    const prompt = JSON.parse(input);
+    expect(input.length).toBeLessThanOrEqual(1000);
+    expect(prompt.subject.changedFiles.length).toBeLessThan(changedFiles.length);
+    expect(prompt.subject.changedFilesComplete).toBe(false);
+    expect(findings).toEqual([]);
+  });
+
+  it("normalizes the first five usable findings and redacts text before truncating", async () => {
+    const secret = "sk-abc12345678901234567890";
+    const valid = {
+      severity: "warning",
+      label: "needsInfo",
+      title: `${"x".repeat(101)} ${secret}`,
+      details: "More context is needed."
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        output_text: JSON.stringify({
+          findings: [
+            { ...valid, title: { diagnostic: true } },
+            ...Array.from({ length: 6 }, (_, index) => ({ ...valid, id: index === 0 ? secret : `context-${index}` }))
+          ]
+        })
+      })
+    }));
+
+    const findings = await analyzeWithAi(subject, {
+      ...defaultConfig,
+      ai: { ...defaultConfig.ai, enabled: true }
+    }, "test-key");
+
+    expect(findings).toHaveLength(5);
+    expect(findings[0]?.id).toBe("ai.finding.2");
+    expect(findings[0]?.title).toContain("[redacted]");
+    expect(JSON.stringify(findings)).not.toContain(secret);
   });
 });

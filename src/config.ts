@@ -11,6 +11,8 @@ export interface ConfigLoadResult {
   warnings: string[];
 }
 
+const MAX_AI_TIMEOUT_MS = 2_147_483_647;
+
 const MINIMUM_VALUES: Record<string, number> = {
   "config.issue.minBodyCharacters": 0,
   "config.issue.duplicateSearchLimit": 0,
@@ -72,8 +74,8 @@ export const defaultConfig: FirewallConfig = {
       ".github/ISSUE_TEMPLATE"
     ],
     codeOwnersPaths: [
-      "CODEOWNERS",
       ".github/CODEOWNERS",
+      "CODEOWNERS",
       "docs/CODEOWNERS"
     ],
     maxGuidanceCharacters: 16000
@@ -108,7 +110,7 @@ export const defaultConfig: FirewallConfig = {
       "\\bxox[baprs]-[A-Za-z0-9-]{20,}\\b",
       "\\bSG\\.[A-Za-z0-9_-]{16,}\\.[A-Za-z0-9_-]{16,}\\b",
       "\\beyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\b",
-      "\\b-----BEGIN (RSA |OPENSSH |EC )?PRIVATE KEY-----\\b"
+      "-----BEGIN (?:RSA |DSA |OPENSSH |EC |ENCRYPTED )?PRIVATE KEY-----[\\s\\S]*?(?:-----END (?:RSA |DSA |OPENSSH |EC |ENCRYPTED )?PRIVATE KEY-----|$)"
     ]
   },
   labeling: {
@@ -200,7 +202,7 @@ export async function loadConfigWithDiagnostics(
     }
 
     const content = Buffer.from(response.data.content, "base64").toString("utf8");
-    const parsed = parse(content) as Partial<FirewallConfig> | undefined;
+    const parsed: unknown = parse(content);
 
     return {
       config: mergeConfig(parsed ?? {}),
@@ -255,7 +257,7 @@ export function configShapeWarnings(
 
     const warnings: string[] = [];
     for (const [key, value] of Object.entries(override)) {
-      if (!(key in base)) {
+      if (!Object.hasOwn(base, key)) {
         warnings.push(`${path}.${key} is not a supported config key and will be ignored.`);
         continue;
       }
@@ -275,6 +277,15 @@ export function configShapeWarnings(
   }
 
   if (typeof base === "number" && typeof override === "number") {
+    if (!Number.isSafeInteger(override)) {
+      return [`${path} should be a safe integer; using the default value.`];
+    }
+    if (path === "config.version" && override !== defaultConfig.version) {
+      return [`${path} should be ${defaultConfig.version}; using the supported config version.`];
+    }
+    if (path === "config.ai.timeoutMs" && override > MAX_AI_TIMEOUT_MS) {
+      return [`${path} should be at most ${MAX_AI_TIMEOUT_MS}; using ${MAX_AI_TIMEOUT_MS} during normalization.`];
+    }
     const minimum = MINIMUM_VALUES[path];
     if (minimum !== undefined && override < minimum) {
       return [`${path} should be at least ${minimum}; using ${minimum} during normalization.`];
@@ -298,6 +309,7 @@ export function configShapeWarnings(
 function normalizeConfig(config: FirewallConfig): FirewallConfig {
   return {
     ...config,
+    version: defaultConfig.version,
     issue: {
       ...config.issue,
       minBodyCharacters: Math.max(0, config.issue.minBodyCharacters),
@@ -347,7 +359,7 @@ function normalizeConfig(config: FirewallConfig): FirewallConfig {
       ...config.ai,
       maxInputCharacters: Math.max(1000, config.ai.maxInputCharacters),
       maxOutputTokens: Math.max(100, config.ai.maxOutputTokens),
-      timeoutMs: Math.max(1000, config.ai.timeoutMs)
+      timeoutMs: Math.min(MAX_AI_TIMEOUT_MS, Math.max(1000, config.ai.timeoutMs))
     }
   };
 }
@@ -368,7 +380,7 @@ function deepMerge<T>(base: T, override: unknown): T {
 
     const output: Record<string, unknown> = { ...base };
     for (const [key, value] of Object.entries(override)) {
-      if (!(key in output)) {
+      if (!Object.hasOwn(base, key)) {
         continue;
       }
 
@@ -383,7 +395,7 @@ function deepMerge<T>(base: T, override: unknown): T {
   }
 
   if (typeof base === "number") {
-    return (typeof override === "number" && Number.isFinite(override) ? override : base) as T;
+    return (typeof override === "number" && Number.isSafeInteger(override) ? override : base) as T;
   }
 
   if (typeof base === "string") {
